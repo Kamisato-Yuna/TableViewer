@@ -21,7 +21,7 @@
     />
     <meta
       property="og:image"
-      content="https://kamisato-yuna.github.io/TableViewer/assets/workspace-zh-Hans.png"
+      content="https://kamisato-yuna.github.io/TableViewer/assets/workspace-dark-zh-Hans.png"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="canonical" href="https://kamisato-yuna.github.io/TableViewer/" />
@@ -93,23 +93,58 @@
           </p>
         </div>
         <figure class="product-figure">
+          <div class="screenshot-controls">
+            <span id="screenshot-caption" aria-live="polite"
+              >真实界面 · 浅色外观</span
+            >
+            <div
+              class="appearance-switch glass"
+              role="group"
+              aria-label="真实界面外观"
+            >
+              <button type="button" data-appearance="light" aria-pressed="true">
+                浅色
+              </button>
+              <button type="button" data-appearance="dark" aria-pressed="false">
+                深色
+              </button>
+            </div>
+          </div>
           <button
             class="product-window"
             id="open-screenshot"
-            aria-label="放大查看 TableViewer 真实界面"
+            aria-label="放大查看 TableViewer 浅色真实界面"
           >
             <img
-              src="assets/workspace-zh-Hans.png"
-              width="1229"
-              height="768"
-              alt="TableViewer 真实界面：左侧数据库导航、中间 projects 数据表、右侧记录详情"
+              src="assets/workspace-light-zh-Hans.png"
+              width="2880"
+              height="1800"
+              id="workspace-preview"
+              alt="TableViewer 浅色真实界面：左侧数据库导航、中间 projects 数据表、右侧记录详情"
               fetchpriority="high"
             />
             <span class="zoom-hint"
-              >查看真实界面
+              >放大查看 · 高清原图
               <svg class="icon"><use href="#arrow-up-right" /></svg
             ></span>
           </button>
+          <noscript
+            ><p class="screenshot-fallback">
+              <a
+                href="assets/workspace-light-zh-Hans.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                >浅色原图</a
+              >
+              ·
+              <a
+                href="assets/workspace-dark-zh-Hans.png"
+                target="_blank"
+                rel="noopener noreferrer"
+                >深色原图</a
+              >
+            </p></noscript
+          >
           <figcaption class="database-list">
             <span
               ><svg class="icon"><use href="#database" /></svg>SQLite</span
@@ -162,6 +197,10 @@
             Agent 助手
           </button>
         </div>
+        <p id="demo-notice" class="demo-notice" role="alert" hidden></p>
+        <script type="application/json" id="demo-projects">
+          {{DEMO_PROJECTS}}
+        </script>
         <div class="demo glass reveal">
           <div
             id="panel-browse"
@@ -180,69 +219,113 @@
                     ><input
                       id="project-search"
                       type="search"
-                      placeholder="筛选示例项目"
-                      aria-label="筛选示例项目"
+                      placeholder="筛选当前页…"
+                      aria-label="筛选当前页"
                   /></label>
                 </div>
                 <div class="table-scroll">
                   <table>
                     <thead>
                       <tr>
-                        <th scope="col">名称</th>
-                        <th scope="col">状态</th>
-                        <th scope="col">进度</th>
+                        <th scope="col">#</th>
+                        <th scope="col" aria-sort="none">
+                          <button
+                            type="button"
+                            data-sort="id"
+                            aria-label="按 id 排序"
+                          >
+                            id
+                          </button>
+                        </th>
+                        <th scope="col" aria-sort="none">
+                          <button
+                            type="button"
+                            data-sort="name"
+                            aria-label="按 name 排序"
+                          >
+                            name
+                          </button>
+                        </th>
+                        <th scope="col" aria-sort="none">
+                          <button
+                            type="button"
+                            data-sort="category"
+                            aria-label="按 category 排序"
+                          >
+                            category
+                          </button>
+                        </th>
+                        <th scope="col" aria-sort="none">
+                          <button
+                            type="button"
+                            data-sort="status"
+                            aria-label="按 status 排序"
+                          >
+                            status
+                          </button>
+                        </th>
+                        <th scope="col" aria-sort="none">
+                          <button
+                            type="button"
+                            data-sort="progress"
+                            aria-label="按 progress 排序"
+                          >
+                            progress
+                          </button>
+                        </th>
+                        <th scope="col" aria-sort="none">
+                          <button
+                            type="button"
+                            data-sort="updated_at"
+                            aria-label="按 updated_at 排序"
+                          >
+                            updated_at
+                          </button>
+                        </th>
                       </tr>
                     </thead>
                     <tbody id="project-rows"></tbody>
                   </table>
                 </div>
                 <p id="record-count" class="table-status" role="status">
-                  4 条记录 · 点击项目以编辑
+                  12 条记录 · 每页 200 条 · 第 1 页
                 </p>
               </div>
               <form id="record-form" class="inspector">
-                <label
-                  >名称<input
-                    id="record-name"
-                    required
-                    maxlength="60"
-                    autocomplete="off"
-                /></label>
-                <label
-                  >状态<select id="record-status">
-                    <option value="active">进行中</option>
-                    <option value="done">已完成</option>
-                  </select></label
-                >
-                <label
-                  >进度
-                  <output id="progress-value" for="record-progress">72%</output
-                  ><input
-                    id="record-progress"
-                    type="range"
-                    aria-label="项目进度"
-                    min="0"
-                    max="100"
-                    value="72"
-                /></label>
-                <label
-                  >描述<textarea
-                    id="record-description"
-                    maxlength="160"
-                    rows="3"
-                  ></textarea>
-                </label>
+                <div class="inspector-heading">
+                  <strong>记录详情</strong
+                  ><span id="draft-indicator">6 个字段</span>
+                </div>
+                <div class="record-fields" id="record-fields"></div>
                 <div class="inspector-actions">
-                  <button class="small-button" type="reset">取消</button
-                  ><button class="small-button blue" type="submit">保存</button>
+                  <button
+                    id="undo-record"
+                    class="small-button"
+                    type="reset"
+                    disabled
+                  >
+                    撤销</button
+                  ><button
+                    id="save-record"
+                    class="small-button blue"
+                    type="submit"
+                    disabled
+                  >
+                    保存
+                  </button>
                 </div>
                 <span class="save-status" id="save-status" role="status"></span>
               </form>
             </div>
             <div class="demo-copy">
               <h3>看见细节，<br />保持全局。</h3>
-              <p>浏览表与集合，在详情面板编辑记录。每一次修改，都清楚可见。</p>
-              <small>交互示意 · 示例数据<br />修改仅保留在当前页面</small>
+              <p>
+                浏览表与集合，在详情面板编辑字段。保存或撤销修改，再继续探索。
+              </p>
+              <small
+                >Studio 示例库 · 本页内存演示<br />字段与记录取自应用；筛选只作用于当前页。此处演示
+                SQL 记录编辑，MongoDB 使用 Extended JSON。</small
+              >
             </div>
           </div>
           <div
@@ -271,8 +354,7 @@
               </div>
               <div class="query-actions">
                 <button id="run-query" class="small-button blue">
-                  <svg class="icon"><use href="#play" /></svg
-                  >运行示例查询</button
+                  <svg class="icon"><use href="#play" /></svg>运行</button
                 ><button id="export-csv" class="small-button" disabled>
                   导出 CSV <svg class="icon"><use href="#arrow-down" /></svg>
                 </button>
@@ -288,7 +370,10 @@
             <div class="demo-copy">
               <h3>把想法，<br />写成查询。</h3>
               <p>运行 SQL 或 MongoDB JSON 命令，将已加载的结果导出为 CSV。</p>
-              <small>交互示意 · 固定查询<br />实际应用支持 ⌘↵ 运行</small>
+              <small
+                >固定 SQL 示意 · 支持 ⌘↵ 运行<br />本页不执行任意
+                SQL；实际应用可编辑 SQL / JSON 命令，导出已加载结果。</small
+              >
             </div>
           </div>
           <div
@@ -312,12 +397,18 @@
                 </p>
                 <div class="operation">
                   <div class="operation-heading">
-                    <strong>execute_query</strong><span>Studio · SQLite</span>
+                    <strong>执行数据库查询</strong><span>Studio · SQLite</span>
                   </div>
+                  <p class="operation-purpose">
+                    目的：查看进度达到 70 的项目。
+                  </p>
                   <code
                     >SELECT name, progress<br />FROM projects WHERE progress
                     &gt;= 70;</code
                   >
+                  <p class="operation-warning">
+                    查询将直接在这个连接上执行，写入语句会修改数据。
+                  </p>
                   <div id="agent-actions">
                     <button id="approve-operation" class="small-button blue">
                       确认执行一次</button
@@ -335,7 +426,9 @@
                 连接自己的兼容
                 API。操作先确认，执行结果留在本机，由你决定是否发送给模型。
               </p>
-              <small>交互示意 · 不连接 AI 服务<br />不会向外发送示例数据</small
+              <small
+                >流程示意 · 不连接 AI 服务<br />实际应用先配置
+                API，再由模型提出操作；确认后的结果也由你决定是否发送。</small
               ><button id="reset-agent" class="text-button">重新体验</button>
             </div>
           </div>
@@ -494,16 +587,23 @@
     </footer>
     <dialog id="screenshot-dialog" aria-label="TableViewer 真实界面大图">
       <div class="dialog-toolbar">
-        <span>TableViewer · 简体中文真实界面</span
+        <span id="dialog-caption">TableViewer · 浅色真实界面</span
+        ><a
+          id="original-screenshot"
+          href="assets/workspace-light-zh-Hans.png"
+          target="_blank"
+          rel="noopener noreferrer"
+          >打开原图 · 2880 × 1800</a
         ><button id="close-screenshot" class="small-button" autofocus>
           关闭 <kbd>Esc</kbd>
         </button>
       </div>
       <img
-        src="assets/workspace-zh-Hans.png"
-        width="1229"
-        height="768"
-        alt="TableViewer 数据库工作台完整界面"
+        src="assets/workspace-light-zh-Hans.png"
+        width="2880"
+        height="1800"
+        id="dialog-screenshot"
+        alt="TableViewer 浅色数据库工作台完整界面"
       />
     </dialog>
   </body>

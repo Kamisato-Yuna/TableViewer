@@ -6,10 +6,23 @@ import json
 from pathlib import Path
 import re
 import shutil
+import sqlite3
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO_URL = "https://github.com/Kamisato-Yuna/TableViewer"
+
+
+def demo_projects_json():
+    """Use the app's Studio seed, without opening any user's database."""
+    source = (ROOT / "TableViewer/Services/ConnectionVault.swift").read_text()
+    sql = re.search(r'let sql = """\n(.*?)\n\s*"""', source, re.S).group(1)
+    with sqlite3.connect(":memory:") as db:
+        db.row_factory = sqlite3.Row
+        db.executescript(sql)
+        projects = [dict(row) for row in db.execute("SELECT * FROM projects ORDER BY id")]
+    # JSON embedded in a script data block must not be able to close that block.
+    return json.dumps(projects, ensure_ascii=False).replace("<", "\\u003c").replace("&", "\\u0026")
 
 
 def release_values(release):
@@ -48,6 +61,7 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / "_site")
     args = parser.parse_args()
     values = release_values(json.loads(args.release_json.read_text()))
+    values["DEMO_PROJECTS"] = demo_projects_json()
     template = (ROOT / "site/index.html").read_text()
     expected = set(re.findall(r"\{\{([A-Z_]+)\}\}", template))
     if expected - values.keys():
@@ -57,7 +71,8 @@ def main():
     for name in ("styles.css", "app.js"):
         shutil.copy2(ROOT / "site" / name, args.output / name)
     shutil.copytree(ROOT / "site/assets", args.output / "assets", dirs_exist_ok=True)
-    shutil.copy2(ROOT / "docs/screenshots/workspace-zh-Hans.png", args.output / "assets/workspace-zh-Hans.png")
+    shutil.copy2(ROOT / "docs/screenshots/workspace-zh-Hans.png", args.output / "assets/workspace-dark-zh-Hans.png")
+    shutil.copy2(ROOT / "docs/screenshots/workspace-light-zh-Hans.png", args.output / "assets/workspace-light-zh-Hans.png")
     (args.output / "index.html").write_text(rendered)
     (args.output / ".nojekyll").touch()
     print(f'Built {values["VERSION"]} product page: {args.output}')
