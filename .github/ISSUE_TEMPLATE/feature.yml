@@ -1,0 +1,16 @@
+name: Feature request / 功能建议
+description: Describe a concrete workflow / 描述实际使用场景
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Workflow and problem / 使用场景与问题
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives / 期望行为与替代方案
+    validations:
+      required: true

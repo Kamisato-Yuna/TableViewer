@@ -1,0 +1,60 @@
+{
+  "color-space-for-untagged-svg-colors" : "display-p3",
+  "features" : [
+    "refractivity"
+  ],
+  "fill" : "system-light",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "glass" : true,
+          "image-name" : "05-Focus.svg",
+          "name" : "薄荷 · 焦点单元格"
+        },
+        {
+          "blend-mode" : "normal",
+          "glass" : true,
+          "image-name" : "04-Columns.svg",
+          "name" : "冰青 · 表格记录"
+        },
+        {
+          "blend-mode" : "normal",
+          "glass" : true,
+          "image-name" : "03-Header.svg",
+          "name" : "青 · 字段表头"
+        },
+        {
+          "blend-mode" : "normal",
+          "glass" : true,
+          "image-name" : "02-Table.svg",
+          "name" : "蓝 · 表格视窗"
+        },
+        {
+          "blend-mode" : "normal",
+          "glass" : true,
+          "image-name" : "01-Connections.svg",
+          "name" : "靛蓝 · 多源连接"
+        }
+      ],
+      "name" : "TableViewer · 数据透镜",
+      "refractivity" : {
+        "depth" : 0.22,
+        "enabled" : true,
+        "strength" : 0.48
+      },
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.28
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.6
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

@@ -1,0 +1,19 @@
+name: Source checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python and shell syntax
+        run: |
+          python3 -m compileall -q script
+          for script in script/*.sh; do bash -n "$script"; done
+      - name: Localization resources
+        run: python3 script/check_localizations.py

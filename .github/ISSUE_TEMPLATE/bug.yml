@@ -1,0 +1,26 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem / 报告可复现的问题
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: App and macOS versions / 应用与系统版本
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database / 数据库
+      options: [SQLite, PostgreSQL, MongoDB, "UI / Agent / Other"]
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps, expected behavior, actual behavior / 步骤、预期与实际结果
+      description: Use disposable data. Remove passwords, URIs, keys and private records.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted logs or screenshots / 脱敏日志或截图

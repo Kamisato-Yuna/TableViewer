@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas / 问答与交流
+    url: https://github.com/Kamisato-Yuna/TableViewer/discussions
+    about: Ask questions and discuss workflows.
+  - name: Private security report / 私密安全报告
+    url: https://github.com/Kamisato-Yuna/TableViewer/security/advisories/new
+    about: Do not report vulnerabilities in public issues.
