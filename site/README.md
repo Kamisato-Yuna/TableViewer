@@ -18,6 +18,8 @@ python3 -m http.server 4173 --directory _site --bind 127.0.0.1
 
 ## 发布与维护
 
+`github-pages` 环境保留仅允许 main 部署的限制。Release 事件来自版本标签，因此先调度 main 上的 Pages 工作流，再由 main 读取最新正式 Release（含 `appcast.xml`）并部署；不直接从版本标签部署，也不扩大环境的分支/标签权限。更新清单和最终 DMG 随 Release 一起上传。
+
 GitHub Pages 使用 Actions 发布，工作流为 `.github/workflows/pages.yml`。网站相关文件或 Studio 示例数据源码推送至 main，正式 Release 发布、编辑、删除，或手动运行工作流时，读取最新正式 Release 并构建。版本号、日期、DMG 大小、下载链接和前三条发布要点直接来自 GitHub；发布要点按纯文本转义，完整说明链接至 Release。未找到正式 arm64 DMG 时停止构建，保留已发布站点。
 
 页面关于最低系统、v0.2.0 签名公证与验证环境的说明是明确标记版本的产品文案；后续改变这些信息时同步编辑 `site/index.html`。工作流只上传 `_site` 的网页资产，不发布仓库其他目录。
