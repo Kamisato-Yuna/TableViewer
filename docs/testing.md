@@ -16,7 +16,7 @@ Run `script/check_localizations.py`, `script/test_databases.sh`, `script/test_re
 
 The two workspace images in `docs/screenshots/` show only the built-in Studio sample. Chinese database values remain Chinese in English mode because database content is never translated.
 
-GitHub Actions checks Python/shell syntax and localization resources, builds the Release app on macOS, runs SQLite and reliability regression, and mounts the generated DMG to verify its layout and embedded signature. CI does not perform distribution signing or notarization. macOS 26 runtime, Intel, real remote TLS/SRV deployments, real AI providers, TestFlight, and App Store review are not certified by these checks.
+GitHub Actions checks Python/shell syntax and localization resources, builds the Release app on macOS, runs SQLite and reliability regression, and mounts the generated DMG to verify its layout and embedded signature. CI does not perform distribution signing or notarization. Interactive macOS 26 app compatibility, Intel, real remote TLS/SRV deployments, real AI providers, TestFlight, and App Store review are not certified by these checks.
 
 ## Apple distribution evidence
 

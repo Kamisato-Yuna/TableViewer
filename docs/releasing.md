@@ -31,6 +31,8 @@ For an already signed and stapled app, run `./script/notarize_dmg.sh path/to/Tab
 
 ## CI coverage
 
-The `source` job checks syntax and translations. A separate `macOS build and tests` job runs on GitHub's Apple Silicon `macos-26` runner and covers Release compilation, embedded drivers, SQLite integration, reliability regression, and DMG mount/layout verification. Its app is ad hoc signed and is not a distributable release. Public pull requests do not receive Apple credentials.
+The `source` job checks syntax and translations. A separate `macOS build and tests` job runs on GitHub's Apple Silicon `xcode-27` preview runner (macOS 26) and covers Release compilation, embedded drivers, SQLite integration, reliability regression, and DMG mount/layout verification. Its app is ad hoc signed and is not a distributable release. Public pull requests do not receive Apple credentials.
 
 The workflow cancels superseded runs and has a 30-minute macOS timeout. It does not run full Docker replica-set integration on macOS runners or automate App Store submissions. Signing and notarization continue on the maintainer's Mac. The existing required `source` check is unchanged; no extra mandatory branch check is added.
+
+The current Icon Composer resource fails in Xcode 26.6 actool, so CI uses the [Xcode 27 preview image](https://github.com/actions/runner-images/issues/14404), matching local development. Move to the supported stable image after that toolchain is available and verified. A green CI run does not establish App Store toolchain eligibility.
