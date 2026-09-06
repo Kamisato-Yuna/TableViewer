@@ -10,9 +10,9 @@ A native, open-source macOS workspace for **SQLite, PostgreSQL, and MongoDB**. B
 
 ## Install
 
-Download the macOS arm64 ZIP from Releases, unzip it, and move `TableViewer.app` to Applications. The public release is signed with Developer ID, notarized by Apple, and has its notarization ticket stapled.
+Download the macOS arm64 ZIP from Releases, unzip it, and move `TableViewer.app` to Applications.
 
-Requires an **Apple Silicon Mac with macOS 26 or later**. The current release was built and tested on macOS 27 beta with Xcode 27 beta 6; macOS 26 runtime compatibility remains unverified. Intel builds are not provided. App Store China materials are prepared, but the app has not been submitted or listed while the current toolchain remains beta.
+Requires an **Apple Silicon Mac with macOS 26 or later**. Tested on macOS 27 beta; macOS 26 runtime compatibility remains unverified. Intel builds are not provided.
 
 The app follows your system language. To override it, choose **Settings → Language**, save your work, and quit and reopen the app. Database content, identifiers, and user input are displayed unchanged.
 
@@ -46,7 +46,7 @@ python3 script/bootstrap_drivers.py
 ./script/build_and_run.sh --build
 ```
 
-Open `TableViewer.xcodeproj` in Xcode and run the TableViewer scheme. Debug uses ad hoc signing, so contributors do not need the maintainer's Apple account. Driver libraries are copied into `.build/` and embedded in the app; users do not need `psql`, `mongosh`, or Homebrew at runtime. The current bootstrap expects MongoDB C Driver 2.5.2 and an arm64 Tahoe bottle.
+Open `TableViewer.xcodeproj` in Xcode and run the TableViewer scheme. Driver libraries are copied into `.build/` and embedded in the app; users do not need `psql`, `mongosh`, or Homebrew at runtime. The current bootstrap expects MongoDB C Driver 2.5.2 and an arm64 Tahoe bottle.
 
 ```sh
 ./script/test_databases.sh
@@ -56,7 +56,7 @@ python3 script/check_localizations.py
 python3 script/test_features.py
 ```
 
-See [CONTRIBUTING](CONTRIBUTING.md), [release instructions](docs/releasing.md), and [validation scope](docs/testing.md). GitHub Actions checks source syntax and translation resources; it does not replace macOS runtime or signing tests.
+See [CONTRIBUTING](CONTRIBUTING.md), [release instructions](docs/releasing.md), and [validation scope](docs/testing.md). GitHub Actions checks source syntax and translation resources; it does not replace macOS runtime tests.
 
 ## Scope
 

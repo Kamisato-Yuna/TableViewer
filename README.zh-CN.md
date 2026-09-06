@@ -15,7 +15,7 @@
 - 从 Releases 下载 ZIP，解压后将 `TableViewer.app` 移入“应用程序”并打开。开发者本地包位于 `dist/TableViewer.app`。应用已包含三个数据库驱动，运行时无需安装 `psql` 或 `mongosh`。
 - 开发：用 Xcode 打开 `TableViewer.xcodeproj`，选择 **TableViewer → My Mac**，按 ⌘R。
 - 命令行：`./script/build_and_run.sh`。Codex 的 **Run** 按钮也调用同一个脚本。
-- 本机运行目标是 Apple Silicon；最低部署版本 macOS 26，实际编译和交互检查在 macOS 27 Beta 上进行。Debug 使用本地临时签名；公开 Release 使用 Developer ID 签名、Hardened Runtime、App Sandbox 与 Apple 公证。当前由 Xcode 27 beta 6 编译，App Store 中国区已准备材料，尚未提交审核或上架；未进行 TestFlight 验收。
+- 需要 Apple Silicon Mac，最低部署版本 macOS 26；已在 macOS 27 beta 上验证，macOS 26 运行兼容性尚未验证，当前不提供 Intel 版本。
 
 首次启动会打开真实的 SQLite 示例数据库 **Studio**。示例内容可以自由编辑，不会连接其他已有数据库。
 
@@ -104,9 +104,6 @@ SQL 查询最多展示 1,000 行，MongoDB 原始命令展示首批文档；超�
 # 构建并启动；--build 只构建，--verify 同时检查进程
 ./script/build_and_run.sh --verify
 
-# 生成本地开发签名的 dist/TableViewer.app；也可在 Xcode 配置 Development Team
-TABLEVIEWER_DEVELOPMENT_TEAM=你的团队ID ./script/package_app.sh
-
 # SQLite 集成测试
 ./script/test_databases.sh
 
@@ -128,7 +125,7 @@ python3 script/test_features.py --ui
 
 如果清除了 `.build/`，构建脚本会调用 `script/bootstrap_drivers.py`，从本机 Homebrew 的 libpq 和官方 Homebrew MongoDB C Driver bottle 准备驱动。该脚本仅在工程内复制并调整库路径，不修改全局安装。当前 MongoDB C Driver 版本为 2.5.2。
 
-`package_app.sh` 默认选择 Apple Development；可用 `TABLEVIEWER_CODE_SIGN_IDENTITY` 指定本地签名身份。主程序、驱动和 Shell 必须使用同一团队证书，临时签名与 Hardened Runtime 混用会导致动态库加载失败。Shell 使用包内独立辅助程序并继承主应用沙盒。本轮发布验证与边界见 [验证说明](docs/testing.md)。
+发布构建流程见 [发布说明](docs/releasing.md)，测试范围与结果见 [验证说明](docs/testing.md)。
 
 界面使用系统 `NavigationSplitView`、工具栏、sheet 和 `glassEffect`，表格与代码编辑器通过 `NSViewRepresentable` 接入原生控件。支持系统深浅色、减少动态效果设置，以及详情栏的平滑过渡。
 
@@ -140,4 +137,4 @@ MongoDB 状态参考：[replSetGetStatus](https://www.mongodb.com/docs/manual/re
 
 ## 开源参与
 
-欢迎中文和英文 Issue / PR。[贡献指南](CONTRIBUTING.md)、[安全报告](SECURITY.md)、[隐私政策](docs/privacy.md)。CI 只做源码语法与翻译资源检查，macOS 构建、签名和真实运行证据另行记录。
+欢迎中文和英文 Issue / PR。[贡献指南](CONTRIBUTING.md)、[安全报告](SECURITY.md)、[隐私政策](docs/privacy.md)。CI 只做源码语法与翻译资源检查，macOS 构建和真实运行结果另行记录。
