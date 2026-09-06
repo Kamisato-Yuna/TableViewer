@@ -6,7 +6,7 @@ A native, open-source macOS workspace for **SQLite, PostgreSQL, and MongoDB**. B
 
 ![TableViewer workspace](docs/screenshots/workspace-en.png)
 
-[Download](https://github.com/Kamisato-Yuna/TableViewer/releases) · [Discussions](https://github.com/Kamisato-Yuna/TableViewer/discussions) · [Report a bug](https://github.com/Kamisato-Yuna/TableViewer/issues)
+[Product website](https://kamisato-yuna.github.io/TableViewer/) · [Download](https://github.com/Kamisato-Yuna/TableViewer/releases) · [Discussions](https://github.com/Kamisato-Yuna/TableViewer/discussions) · [Report a bug](https://github.com/Kamisato-Yuna/TableViewer/issues)
 
 ## Install
 
