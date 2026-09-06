@@ -6,7 +6,7 @@
 
 ![TableViewer 简体中文界面](docs/screenshots/workspace-zh-Hans.png)
 
-[下载安装包](https://github.com/Kamisato-Yuna/TableViewer/releases) · [交流讨论](https://github.com/Kamisato-Yuna/TableViewer/discussions) · [问题反馈](https://github.com/Kamisato-Yuna/TableViewer/issues)
+[产品网站](https://kamisato-yuna.github.io/TableViewer/) · [下载安装包](https://github.com/Kamisato-Yuna/TableViewer/releases) · [交流讨论](https://github.com/Kamisato-Yuna/TableViewer/discussions) · [问题反馈](https://github.com/Kamisato-Yuna/TableViewer/issues)
 
 支持英文和简体中文，默认跟随系统；在“设置 → 语言 / Language”选择语言，保存当前工作并重新启动后生效。数据库内容、对象名和用户输入保持原文。
 
