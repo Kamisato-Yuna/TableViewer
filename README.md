@@ -10,7 +10,7 @@ A native, open-source macOS workspace for **SQLite, PostgreSQL, and MongoDB**. B
 
 ## Install
 
-Download the macOS arm64 ZIP from Releases, unzip it, and move `TableViewer.app` to Applications.
+Download the macOS arm64 DMG from Releases, open it, and drag `TableViewer.app` to Applications.
 
 Requires an **Apple Silicon Mac with macOS 26 or later**. Tested on macOS 27 beta; macOS 26 runtime compatibility remains unverified. Intel builds are not provided.
 
@@ -56,7 +56,7 @@ python3 script/check_localizations.py
 python3 script/test_features.py
 ```
 
-See [CONTRIBUTING](CONTRIBUTING.md), [release instructions](docs/releasing.md), and [validation scope](docs/testing.md). GitHub Actions checks source syntax and translation resources; it does not replace macOS runtime tests.
+See [CONTRIBUTING](CONTRIBUTING.md), [release instructions](docs/releasing.md), and [validation scope](docs/testing.md). GitHub Actions checks source syntax and translation resources, builds the app on macOS, runs SQLite and reliability tests, and verifies DMG packaging. Distribution signing, notarization, and interactive UI checks remain separate.
 
 ## Scope
 

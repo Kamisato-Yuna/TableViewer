@@ -12,7 +12,7 @@
 
 ## 打开应用
 
-- 从 Releases 下载 ZIP，解压后将 `TableViewer.app` 移入“应用程序”并打开。开发者本地包位于 `dist/TableViewer.app`。应用已包含三个数据库驱动，运行时无需安装 `psql` 或 `mongosh`。
+- 从 Releases 下载 DMG，打开后将 `TableViewer.app` 拖入“应用程序”并启动。开发者本地包位于 `dist/TableViewer.app`。应用已包含三个数据库驱动，运行时无需安装 `psql` 或 `mongosh`。
 - 开发：用 Xcode 打开 `TableViewer.xcodeproj`，选择 **TableViewer → My Mac**，按 ⌘R。
 - 命令行：`./script/build_and_run.sh`。Codex 的 **Run** 按钮也调用同一个脚本。
 - 需要 Apple Silicon Mac，最低部署版本 macOS 26；已在 macOS 27 beta 上验证，macOS 26 运行兼容性尚未验证，当前不提供 Intel 版本。
@@ -137,4 +137,4 @@ MongoDB 状态参考：[replSetGetStatus](https://www.mongodb.com/docs/manual/re
 
 ## 开源参与
 
-欢迎中文和英文 Issue / PR。[贡献指南](CONTRIBUTING.md)、[安全报告](SECURITY.md)、[隐私政策](docs/privacy.md)。CI 只做源码语法与翻译资源检查，macOS 构建和真实运行结果另行记录。
+欢迎中文和英文 Issue / PR。[贡献指南](CONTRIBUTING.md)、[安全报告](SECURITY.md)、[隐私政策](docs/privacy.md)。CI 包含源码语法、翻译资源、macOS 构建、SQLite/可靠性测试与 DMG 打包检查。正式分发和交互界面验收另行验证。
