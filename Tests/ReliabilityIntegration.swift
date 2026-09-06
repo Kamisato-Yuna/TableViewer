@@ -8,6 +8,7 @@ import AppKit
     }
     @MainActor static func main() async throws {
         setbuf(stdout, nil)
+        try inspectorBindings()
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("tableviewer-reliability-\(UUID()).sqlite")
         var handle: OpaquePointer?
         sqlite3_open(file.path, &handle); sqlite3_close(handle)
@@ -78,5 +79,63 @@ import AppKit
         try check(!refreshed && store.result.rows.isEmpty && store.error != nil, "refresh failure is observable without stale data")
         await store.engine.disconnect()
         print("ALL RELIABILITY CHECKS PASSED")
+    }
+
+    @MainActor static func inspectorBindings() throws {
+        let store = WorkspaceStore()
+        store.active = ConnectionProfile(name: "Binding regression")
+        store.selectedObject = DatabaseObject(name: "wide")
+        let columns = [ColumnInfo(name: "id", isPrimaryKey: true), ColumnInfo(name: "name"), ColumnInfo(name: "detail")]
+        let first = DataRow(cells: [.text("1"), .text("first"), .text("detail")])
+        let second = DataRow(cells: [.text("2"), .text("second"), .text("other")])
+        store.result = QueryResult(columns: columns, rows: [first, second])
+        store.selectRow(first.id)
+        let name = store.fieldBinding(row: first, index: 1, column: columns[1])
+        let detail = store.fieldBinding(row: first, index: 2, column: columns[2])
+        name.wrappedValue = .text("edited")
+        try check(store.draft[1] == .text("edited") && store.hasChanges, "current inspector binding edits its record")
+        name.wrappedValue = .null
+        try check(name.wrappedValue.isNull && store.draft[1].isNull, "current inspector binding supports NULL")
+        store.discard()
+        store.busy = true; name.wrappedValue = .text("late save callback"); store.busy = false
+        let primaryKey = store.fieldBinding(row: first, index: 0, column: columns[0])
+        primaryKey.wrappedValue = .text("99")
+        try check(store.draft == first.cells, "busy and primary-key bindings reject writes")
+        store.selectRow(second.id)
+        name.wrappedValue = .text("wrong record")
+        try check(name.wrappedValue == .text("first") && store.draft == second.cells, "retained binding cannot read or overwrite another row")
+        store.selectRow(first.id)
+        store.result.columns.swapAt(1, 2)
+        name.wrappedValue = .text("wrong column")
+        try check(store.draft == first.cells, "retained binding rejects reordered columns")
+        store.result.columns = columns
+        store.selectedObject = DatabaseObject(name: "narrow")
+        name.wrappedValue = .text("during table transition")
+        try check(store.draft == first.cells, "binding rejects writes while selected table changes")
+        let narrow = DataRow(cells: [.text("3")])
+        store.result = QueryResult(columns: [columns[0]], rows: [narrow])
+        store.selectRow(narrow.id)
+        detail.wrappedValue = .null
+        try check(detail.wrappedValue == .text("detail") && store.draft == narrow.cells, "wide-to-narrow transition safely reads and writes retained bindings")
+        store.result = QueryResult(); store.selectRow(nil)
+        detail.wrappedValue = .text("removed")
+        try check(detail.wrappedValue == .text("detail") && store.draft.isEmpty, "empty results safely retire inspector bindings")
+        store.result = QueryResult(columns: columns, rows: [first]); store.selectRow(first.id)
+        store.selectedObject = DatabaseObject(name: "wide")
+        let truncated = store.fieldBinding(row: first, index: 2, column: columns[2])
+        store.draft = []
+        truncated.wrappedValue = .null
+        try check(truncated.wrappedValue == .text("detail") && store.draft.isEmpty, "temporarily truncated draft does not index out of bounds")
+        store.active = ConnectionProfile(name: "Documents", kind: .mongodb)
+        let document = DataRow(cells: [], document: "{\"name\":\"first\"}")
+        store.result = QueryResult(rows: [document]); store.selectRow(document.id)
+        let json = store.documentBinding(row: document)
+        json.wrappedValue = "{\"name\":\"edited\"}"
+        try check(store.hasChanges && store.documentDraft.contains("edited"), "current document binding edits JSON")
+        store.discard()
+        let otherDocument = DataRow(cells: [], document: "{\"name\":\"second\"}")
+        store.result = QueryResult(rows: [otherDocument]); store.selectRow(otherDocument.id)
+        json.wrappedValue = "{}"
+        try check(json.wrappedValue == document.document && store.documentDraft == otherDocument.document, "retained document binding cannot overwrite another document")
     }
 }

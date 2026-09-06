@@ -11,16 +11,29 @@ struct TableViewerEntryPoint {
 struct TableViewerApp: App {
     @NSApplicationDelegateAdaptor(TableViewerAppDelegate.self) private var appDelegate
     @State private var store = WorkspaceStore()
+    @StateObject private var updater = AppUpdater()
+    @AppStorage("appearance") private var appearance = "system"
     var body: some Scene {
         Window("TableViewer", id: "workspace") {
             WorkspaceView(store: store)
                 .frame(minWidth: 1000, minHeight: 650)
                 .tint(.accentColor)
-                .task { appDelegate.store = store; await store.start() }
+                .onChange(of: appearance, initial: true) { _, value in
+                    // 统一窗口、SwiftUI 和 AppKit 控件；nil 重新继承系统外观。
+                    NSApp.appearance = switch value {
+                    case "dark": NSAppearance(named: .darkAqua)
+                    case "light": NSAppearance(named: .aqua)
+                    default: nil
+                    }
+                }
+                .task { appDelegate.store = store; await store.start(); updater.start() }
         }
         .defaultSize(width: 1440, height: 900)
         .windowToolbarStyle(.unified)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("检查更新…", action: updater.checkForUpdates).disabled(!updater.canCheck)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("新建连接…") { store.editingProfile = nil; store.showConnectionSheet = true }
                     .keyboardShortcut("n")
@@ -36,13 +49,17 @@ struct TableViewerApp: App {
                 Button("导出当前结果…") { store.exportCSV() }.disabled(store.displayedResult.columns.isEmpty)
             }
         }
-        Settings { SettingsView() }
+        Settings { SettingsView(updater: updater) }
     }
 }
 
 @MainActor final class TableViewerAppDelegate: NSObject, NSApplicationDelegate {
     weak var store: WorkspaceStore?
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        ConnectionVault.startSession()
+    }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        store?.agentLibrary.save()
         guard let warning = store?.terminationWarning else { return .terminateNow }
         let alert = NSAlert()
         alert.messageText = String(localized: "退出 TableViewer？")
@@ -65,6 +82,7 @@ struct TableViewerApp: App {
 }
 
 struct SettingsView: View {
+    @ObservedObject var updater: AppUpdater
     @AppStorage("appearance") private var appearance = "system"
     @State private var language = (UserDefaults.standard.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "local.yuna.TableViewer")?["AppleLanguages"] as? [String])?.first ?? "system"
     var body: some View {
@@ -83,7 +101,8 @@ struct SettingsView: View {
             Picker("外观", selection: $appearance) { Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark") }
             LabeledContent("凭据存储", value: String(localized: "macOS 钥匙串"))
             LabeledContent("每页记录", value: "200")
-            LabeledContent("版本", value: "0.2.0")
-        }.formStyle(.grouped).frame(width: 520, height: 360)
+            LabeledContent("版本", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
+            UpdateSettingsSection(updater: updater)
+        }.formStyle(.grouped).frame(width: 560, height: 610)
     }
 }

@@ -7,10 +7,38 @@ from pathlib import Path
 import re
 import shutil
 import sqlite3
+import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO_URL = "https://github.com/Kamisato-Yuna/TableViewer"
+SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
+
+
+def update_feed(release, appcast):
+    """Publish the release's signed update metadata without rewriting its contents."""
+    if appcast is None:
+        if any(asset["name"] == "appcast.xml" for asset in release["assets"]):
+            raise ValueError("Release advertises an appcast but it was not downloaded")
+        # Releases predating the updater have no automatically installable update.
+        return b'<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel><title>TableViewer</title></channel></rss>\n'
+    root = ET.fromstring(appcast)
+    items = root.findall("./channel/item")
+    if not items:
+        raise ValueError("Published appcast has no update items")
+    assets = {a["browser_download_url"]: a for a in release["assets"] if a.get("state") == "uploaded"}
+    for item in items:
+        enclosure = item.find("enclosure")
+        if enclosure is None:
+            raise ValueError("Appcast item is missing its archive")
+        asset = assets.get(enclosure.get("url"))
+        if asset is None or not enclosure.get("url", "").startswith(REPO_URL + "/releases/download/"):
+            raise ValueError("Appcast archive must be an uploaded asset of this release")
+        if not enclosure.get(SPARKLE + "edSignature") or int(enclosure.get("length", "0")) != asset["size"]:
+            raise ValueError("Appcast archive signature or size is missing/inconsistent")
+        if item.findtext(SPARKLE + "shortVersionString") != release["tag_name"].removeprefix("v"):
+            raise ValueError("Appcast version does not match the release")
+    return appcast
 
 
 def demo_projects_json():
@@ -59,8 +87,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--release-json", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "_site")
+    parser.add_argument("--appcast", type=Path)
     args = parser.parse_args()
-    values = release_values(json.loads(args.release_json.read_text()))
+    release = json.loads(args.release_json.read_text())
+    values = release_values(release)
+    feed = update_feed(release, args.appcast.read_bytes() if args.appcast else None)
     values["DEMO_PROJECTS"] = demo_projects_json()
     template = (ROOT / "site/index.html").read_text()
     expected = set(re.findall(r"\{\{([A-Z_]+)\}\}", template))
@@ -74,6 +105,7 @@ def main():
     shutil.copy2(ROOT / "docs/screenshots/workspace-zh-Hans.png", args.output / "assets/workspace-dark-zh-Hans.png")
     shutil.copy2(ROOT / "docs/screenshots/workspace-light-zh-Hans.png", args.output / "assets/workspace-light-zh-Hans.png")
     (args.output / "index.html").write_text(rendered)
+    (args.output / "appcast.xml").write_bytes(feed)
     (args.output / ".nojekyll").touch()
     print(f'Built {values["VERSION"]} product page: {args.output}')
 

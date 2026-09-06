@@ -66,11 +66,35 @@ struct ShellEntry: Identifiable {
     var shellHistoryIndex = 0
     var shellDatabase = ""
     var shellRunning = false
-    let agent = AgentSession()
-
-    var agentContext: AgentContext? {
-        active.map { AgentContext(connectionID: $0.id, connectionName: $0.name, kind: $0.kind, schema: agent.shareSchema ? schemaDescription : nil) }
+    let agentLibrary: AgentLibrary
+    var showAgentHistory = false
+    typealias AgentExecution = @Sendable (UUID, AgentAction, ConnectionProfile, DatabaseObject?) async throws -> String
+    private let agentExecution: AgentExecution
+    private let readCredential: (UUID) throws -> String
+    init(agentLibrary: AgentLibrary? = nil, agentExecution: AgentExecution? = nil, readCredential: @escaping (UUID) throws -> String = { try ConnectionVault.read(id: $0) }) {
+        self.readCredential = readCredential
+        self.agentLibrary = agentLibrary ?? AgentLibrary()
+        let executor = AgentToolExecutor()
+        self.agentExecution = agentExecution ?? { id, action, profile, object in
+            try await executor.execute(sessionID: id, action: action, profile: profile, object: object)
+        }
     }
+    var agent: AgentSession? { agentLibrary.selected }
+    func newAgentSession(for profile: ConnectionProfile? = nil) {
+        guard let profile = profile ?? active else { showAgentHistory = true; return }
+        agentLibrary.create(context: AgentContext(connectionID: profile.id, connectionName: profile.name, kind: profile.kind))
+        tab = .agent
+    }
+    func openAgentHistory() { if allowNavigation() { tab = .agent; showAgentHistory = true } }
+    func agentContext(for session: AgentSession) -> AgentContext? {
+        guard var context = session.connection else { return nil }
+        context.schema = session.shareSchema && active?.id == context.connectionID ? schemaDescription : nil
+        return context
+    }
+    func canExecuteAgent(_ session: AgentSession) -> Bool {
+        !session.archived && active?.id == session.connection?.connectionID && profiles.contains { $0.id == session.connection?.connectionID } && !busy && !hasChanges && !session.actions.contains { $0.state == .executing }
+    }
+
     var schemaDescription: String {
         let names = objects.prefix(100).map { $0.schema.isEmpty ? $0.name : $0.schema + "." + $0.name }.joined(separator: ", ")
         return String(localized: "表/集合：\(names)\n当前对象：\(selectedObject?.name ?? String(localized: "无"))\n字段：") + result.columns.map { "\($0.name) \($0.type)\($0.isPrimaryKey ? " PRIMARY KEY" : "")" }.joined(separator: ", ")
@@ -84,6 +108,8 @@ struct ShellEntry: Identifiable {
     var terminationWarning: String? {
         if busy { return String(localized: "数据库操作仍在进行。退出不会撤销已完成的写入；未提交的 SQL 事务会在连接关闭后回滚。") }
         if hasChanges { return String(localized: "当前记录有未保存的修改，退出会丢失这些修改。请取消退出后保存或撤销。") }
+        if agentLibrary.workingCount > 0 { return String(localized: "Agent 仍在生成或执行。历史会保存在本机；退出后中断的操作不会自动重放，数据库执行结果可能需要核实。") }
+        if let historyError = agentLibrary.persistenceError { return historyError }
         return nil
     }
     var canEdit: Bool { selectedObject != nil && selectedObject?.isView == false && (active?.kind == .mongodb || result.columns.contains(where: \.isPrimaryKey)) }
@@ -120,15 +146,23 @@ struct ShellEntry: Identifiable {
 
     func connect(_ profile: ConnectionProfile, secret: String? = nil) async {
         guard allowNavigation() else { return }
+        error = nil
         busy = true; status = String(localized: "正在连接…")
         defer { busy = false }
-        agent.reset(); await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = profile.database
+        // A denied/cancelled Keychain read must not retire the current workspace or driver.
+        let credential: String
+        do { credential = try secret ?? (profile.kind == .sqlite ? "" : readCredential(profile.id)) }
+        catch {
+            report(DatabaseFailure(String(localized: "未能读取连接凭据，尚未切换数据库。请重试或选择其他连接。") + "\n" + error.localizedDescription))
+            return
+        }
+        await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = profile.database
         replicaSnapshot = nil; replicaError = nil
         queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""
         do {
-            let credential = try secret ?? (profile.kind == .sqlite ? "" : ConnectionVault.read(id: profile.id))
             let loaded = try await engine.connect(profile, secret: credential)
             active = profile; objects = loaded
+            if agentLibrary.selected == nil { newAgentSession(for: profile) }
             selectedObject = nil; result = QueryResult(); selectedRowID = nil
             page = 0; sortColumn = nil; rowSearch = ""; objectSearch = ""; tab = .data
             queryResult = QueryResult(); queryHasRun = false; queryHistory = []
@@ -177,6 +211,42 @@ struct ShellEntry: Identifiable {
     }
 
     func discard() { draft = selectedRow?.cells ?? []; documentDraft = selectedRow?.document ?? "" }
+
+    // SwiftUI can retain a field binding after its record has left the inspector.
+    // Resolve against the captured record before touching the current draft.
+    func fieldBinding(row: DataRow, index: Int, column: ColumnInfo) -> Binding<CellValue> {
+        let original = row.cells.indices.contains(index) ? row.cells[index] : .null
+        let connectionID = active?.id
+        let object = selectedObject
+        func isCurrent() -> Bool {
+            active?.id == connectionID && selectedObject == object && selectedRow?.id == row.id
+                && draft.indices.contains(index) && result.columns.indices.contains(index)
+                && result.columns[index].name == column.name
+        }
+        return Binding(get: {
+            isCurrent() ? self.draft[index] : original
+        }, set: { value in
+            guard isCurrent(), !self.busy, self.tab == .data, self.canEdit,
+                  self.result.columns[index].isEditable, !self.result.columns[index].isPrimaryKey else { return }
+            if case .blob = original { return }
+            self.draft[index] = value
+        })
+    }
+
+    func documentBinding(row: DataRow) -> Binding<String> {
+        let connectionID = active?.id
+        let object = selectedObject
+        func isCurrent() -> Bool {
+            active?.id == connectionID && selectedObject == object && selectedRow?.id == row.id
+        }
+        return Binding(get: {
+            isCurrent() ? self.documentDraft : (row.document ?? "")
+        }, set: { value in
+            guard isCurrent(), !self.busy, self.tab == .data, self.canEdit,
+                  self.active?.kind == .mongodb else { return }
+            self.documentDraft = value
+        })
+    }
 
     func saveRow() async {
         guard !busy, canEdit, let selectedObject, let selectedRow else { return }
@@ -244,7 +314,7 @@ struct ShellEntry: Identifiable {
             if profile.kind != .sqlite { try ConnectionVault.remove(id: profile.id) }
             try LocalWorkspace.saveProfiles(updated); profiles = updated
             if active?.id == profile.id {
-                agent.reset(); await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = ""
+                await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = ""
                 await engine.disconnect(); active = nil; objects = []; result = QueryResult(); selectedObject = nil; selectedRowID = nil
                 queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""; draft = []; documentDraft = ""
                 replicaSnapshot = nil; replicaError = nil; status = String(localized: "连接已移除")
@@ -292,26 +362,15 @@ struct ShellEntry: Identifiable {
     }
     func resetShell() async { guard !shellRunning else { return }; await shell.stop(); shellEntries = []; shellDatabase = active?.database ?? "" }
 
-    func executeAgentAction(_ id: String) async {
-        guard allowNavigation(), let active, let action = agent.actions.first(where: { $0.id == id }), action.outcome == nil, action.connectionID == active.id else { return }
-        busy = true; status = String(localized: "执行已确认的 Agent 操作…")
-        defer { busy = false }
+    func executeAgentAction(_ id: String, in session: AgentSession) async {
+        guard canExecuteAgent(session), allowNavigation(), let profile = active,
+              let action = session.beginExecution(id, connectionID: profile.id) else { return }
+        let object = selectedObject
+        // Capture the owner and profile before suspension; never resolve through the currently selected session.
         do {
-            var output: String
-            switch action.call.function.name {
-            case "inspect_schema":
-                objects = try await engine.objects()
-                output = schemaDescription
-            case "execute_query":
-                guard let query = action.query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw DatabaseFailure(String(localized: "工具调用缺少 query。")) }
-                let result = try await engine.run(query)
-                let columns = result.columns.map(\.name)
-                let rows: [[Any]] = result.rows.prefix(100).map { $0.cells.map { value -> Any in value.isNull ? NSNull() : value.display } }
-                output = try jsonText(["columns": columns, "rows": rows, "affectedRows": result.affectedRows, "truncated": result.hasMore || result.rows.count > 100], pretty: true)
-            default: throw DatabaseFailure(String(localized: "不支持模型提出的工具：\(action.call.function.name)"))
-            }
-            agent.resolve(id, output: output, failed: false); status = String(localized: "操作完成 · 结果仅保留在本机，待你选择是否发送")
-        } catch { agent.resolve(id, output: String(localized: "操作失败：") + error.localizedDescription, failed: true); status = String(localized: "Agent 操作未完成") }
+            let output = try await agentExecution(session.id, action, profile, object)
+            session.resolve(id, output: output, failed: false)
+        } catch { session.resolve(id, output: String(localized: "操作失败：") + error.localizedDescription, failed: true) }
     }
 
     func exportCSV() {

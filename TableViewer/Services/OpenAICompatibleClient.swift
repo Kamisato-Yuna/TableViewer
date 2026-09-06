@@ -4,15 +4,47 @@ private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate, @unche
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
 
+// Hold partial tag prefixes across chunks so provider reasoning never flashes in the answer.
+struct AgentReasoningFilter {
+    private var pending = ""
+    private var thinking = false
+    mutating func consume(_ text: String) -> String {
+        var output = ""
+        let opening = ["<think>", "&lt;think&gt;"]
+        let closing = ["</think>", "&lt;/think&gt;"]
+        for character in text {
+            pending.append(character)
+            while !pending.isEmpty {
+                let lower = pending.lowercased()
+                let tags = opening + closing
+                if let tag = tags.first(where: { lower.hasPrefix($0) }) {
+                    thinking = opening.contains(tag); pending.removeFirst(tag.count)
+                } else if tags.contains(where: { $0.hasPrefix(lower) }) { break }
+                else {
+                    let character = pending.removeFirst()
+                    if !thinking { output.append(character) }
+                }
+            }
+        }
+        return output
+    }
+
+}
+
 struct CompletionAccumulator {
     var content = ""
     var calls: [Int: AgentToolCall] = [:]
     var finished = false
+    private var filter = AgentReasoningFilter()
+    private var completionError: String?
+    private var receivedContentBytes = 0
     mutating func consume(_ object: [String: Any]) throws -> String {
         if let error = object["error"] as? [String: Any] { throw DatabaseFailure(error["message"] as? String ?? String(localized: "API 返回错误。")) }
         guard let choice = (object["choices"] as? [[String: Any]])?.first else { return "" }
         let delta = choice["delta"] as? [String: Any] ?? choice["message"] as? [String: Any] ?? [:]
-        let text = delta["content"] as? String ?? delta["refusal"] as? String ?? ""
+        let rawText = delta["content"] as? String ?? delta["refusal"] as? String ?? ""
+        receivedContentBytes += rawText.utf8.count
+        let text = filter.consume(rawText)
         content += text
         if let fragments = delta["tool_calls"] as? [[String: Any]] {
             for (offset, fragment) in fragments.enumerated() {
@@ -27,13 +59,14 @@ struct CompletionAccumulator {
             }
         }
         if let reason = choice["finish_reason"] as? String {
-            if reason == "length" { throw DatabaseFailure(String(localized: "模型输出达到上限，请缩小请求范围后重试；未执行任何工具。")) }
+            if reason == "length" { completionError = String(localized: "模型输出达到上限，已保留部分回复；可继续或重新生成。未执行本次工具。") }
             finished = true
         }
-        guard content.utf8.count + calls.values.reduce(0, { $0 + $1.function.arguments.utf8.count }) <= 1_000_000 else { throw DatabaseFailure(String(localized: "API 返回内容过大。")) }
+        guard receivedContentBytes + calls.values.reduce(0, { $0 + $1.function.arguments.utf8.count }) <= 1_000_000 else { throw DatabaseFailure(String(localized: "API 返回内容过大。")) }
         return text
     }
     func message() throws -> AgentMessage {
+        if let completionError { throw DatabaseFailure(completionError) }
         let ordered = calls.keys.sorted().compactMap { calls[$0] }
         guard !content.isEmpty || !ordered.isEmpty else { throw DatabaseFailure(String(localized: "模型没有返回内容或工具调用。")) }
         guard Set(ordered.map(\.id)).count == ordered.count, ordered.allSatisfy({ !$0.id.isEmpty && !$0.function.name.isEmpty && (try? jsonObject($0.function.arguments)) != nil }) else { throw DatabaseFailure(String(localized: "API 返回的工具调用不完整；未执行操作。")) }
@@ -47,7 +80,7 @@ final class OpenAICompatibleClient: @unchecked Sendable {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 60; configuration.timeoutIntervalForResource = 180
         configuration.httpCookieStorage = nil; configuration.urlCache = nil
-        session = URLSession(configuration: configuration, delegate: NoRedirectDelegate(), delegateQueue: nil)
+        self.session = URLSession(configuration: configuration, delegate: NoRedirectDelegate(), delegateQueue: nil)
     }
     deinit { session.invalidateAndCancel() }
 
@@ -127,7 +160,8 @@ final class OpenAICompatibleClient: @unchecked Sendable {
             throw DatabaseFailure("API HTTP \(response.statusCode)：\(String(message.prefix(1000)))")
         }
     }
-    private static let tools: [[String: Any]] = [
+    static let tools: [[String: Any]] = [
+        ["type": "function", "function": ["name": "ask_user", "description": String(localized: "信息不足时向用户提出一个短问题。通常提供两到三个选项，选择表或字段时最多十二个；也可不提供选项让用户自由回答。回答不代表数据库操作授权。"), "parameters": ["type": "object", "properties": ["question": ["type": "string", "maxLength": 240], "options": ["type": "array", "items": ["type": "string", "maxLength": 100], "maxItems": AgentQuestion.maximumOptions]], "required": ["question"], "additionalProperties": false]]],
         ["type": "function", "function": ["name": "inspect_schema", "description": String(localized: "请求用户批准后检查当前数据库的表/集合及当前表字段；不会读取记录。"), "parameters": ["type": "object", "properties": [:], "additionalProperties": false]]],
         ["type": "function", "function": ["name": "execute_query", "description": String(localized: "提出一条 SQL 或 MongoDB JSON 命令，由用户确认后执行；结果只有用户选择发送后才返回模型。"), "parameters": ["type": "object", "properties": ["query": ["type": "string", "description": String(localized: "一条 SQL，或命令名位于首位的 MongoDB JSON 命令")], "reason": ["type": "string", "description": String(localized: "说明目的和可能的写入影响")]], "required": ["query", "reason"], "additionalProperties": false]]]
     ]

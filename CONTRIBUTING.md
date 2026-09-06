@@ -16,6 +16,8 @@ python3 script/bootstrap_drivers.py
 
 Open `TableViewer.xcodeproj` to run and debug. Debug uses ad hoc signing; contributors do not need the maintainer's Apple account.
 
+For repeated local E2E builds, `script/build_and_run.sh` also accepts `TABLEVIEWER_CODE_SIGN_IDENTITY` and optional `TABLEVIEWER_DEVELOPMENT_TEAM`, as the packaging script does. Select an existing signing identity on your Mac and keep using it at the same app path. The default remains ad hoc signing, whose identity changes when the binary changes; macOS can therefore request Keychain authorization again after rebuilding. A stable signing identity helps preserve access decisions across builds but does not bypass the first authorization or existing item permissions. Do not broaden Keychain access to all applications.
+
 ## Pull requests
 
 1. Fork the repository and create a focused branch.

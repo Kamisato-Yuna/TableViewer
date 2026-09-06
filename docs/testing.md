@@ -1,5 +1,7 @@
 # Validation / 验证范围
 
+0.3.0（build 4）的自动更新、签名安装、退出保护和本轮回归见 [自动更新验证](updater-validation.md)。下文保留 0.2.0 的历史验收。
+
 Release 0.2.0 (build 3), 2026-09-06. Verified on Apple Silicon with macOS 27 beta and Xcode 27 beta 6 (27A5252f).
 
 | Check | Evidence / Scope |
@@ -27,3 +29,11 @@ GitHub Actions checks Python/shell syntax and localization resources, builds the
 - The initial ZIP distribution has been replaced by `TableViewer-0.2.0-macOS-arm64.dmg`, containing the same app and an Applications shortcut.
 
 This is distribution outside the Mac App Store; App Store approval has not been obtained.
+
+凭据重复授权的本轮改动、65 条凭据回归、模型请求回归及实机边界见 [凭据复用验证](keychain-session-validation.md)。
+
+## OrbStack 大数据量数据库验收
+
+PostgreSQL / MongoDB 每库 10 个表或集合、每个 50,000 条仿真记录，真实驱动与原生界面场景、复现命令及覆盖口径见 [OrbStack E2E 报告](orbstack-e2e.md)。
+
+MongoDB 三实例副本集、主从切换、多数派故障及恢复验收见 [副本集 E2E 报告](mongodb-replica-e2e.md)。

@@ -28,17 +28,17 @@ struct InspectorView: View {
                         }.padding(.vertical, 2)
                         if store.active?.kind == .mongodb {
                             Text("EXTENDED JSON").font(.system(size: 9, weight: .semibold)).tracking(1).foregroundStyle(.tertiary)
-                            TextEditor(text: $store.documentDraft).font(.system(size: 11, design: .monospaced))
+                            TextEditor(text: store.documentBinding(row: row)).font(.system(size: 11, design: .monospaced))
                                 .scrollContentBackground(.hidden).frame(minHeight: 420).disabled(!store.canEdit || store.busy)
                                 .accessibilityLabel("MongoDB 文档")
                         } else {
                             ForEach(Array(store.result.columns.enumerated()), id: \.element.id) { index, column in
-                                if index < store.draft.count {
-                                    field(index: index, column: column, original: row.cells[index])
+                                if store.draft.indices.contains(index), row.cells.indices.contains(index) {
+                                    field(row: row, index: index, column: column, original: row.cells[index])
                                 }
                             }
                         }
-                    }.padding(20)
+                    }.padding(20).id(row.id)
                 }
                 Spacer(minLength: 0)
                 Divider()
@@ -56,8 +56,9 @@ struct InspectorView: View {
         }
     }
 
-    private func field(index: Int, column: ColumnInfo, original: CellValue) -> some View {
+    private func field(row: DataRow, index: Int, column: ColumnInfo, original: CellValue) -> some View {
         let editable = store.canEdit && column.isEditable && !column.isPrimaryKey && !isBlob(original)
+        let value = store.fieldBinding(row: row, index: index, column: column)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 5) {
                 if column.isPrimaryKey { Image(systemName: "key.horizontal").foregroundStyle(.orange).font(.system(size: 10)) }
@@ -65,15 +66,15 @@ struct InspectorView: View {
                 Spacer(minLength: 4)
                 Text(column.type.isEmpty ? "TEXT" : column.type.uppercased()).font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.tertiary).lineLimit(1)
             }
-            TextField("NULL", text: Binding(get: { store.draft[index].isNull ? "" : store.draft[index].display }, set: { store.draft[index] = .text($0) }), axis: .vertical)
+            TextField("NULL", text: Binding(get: { value.wrappedValue.isNull ? "" : value.wrappedValue.display }, set: { value.wrappedValue = .text($0) }), axis: .vertical)
                 .font(.system(size: 12, design: column.isPrimaryKey ? .monospaced : .default))
                 .lineLimit(1...6).textFieldStyle(.plain).padding(10)
                 .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 7))
-                .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(store.draft[index] != original ? Color.orange.opacity(0.45) : Color.primary.opacity(0.06)) }
-                .disabled(!editable || store.busy || store.draft[index].isNull)
+                .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(value.wrappedValue != original ? Color.orange.opacity(0.45) : Color.primary.opacity(0.06)) }
+                .disabled(!editable || store.busy || value.wrappedValue.isNull)
                 .accessibilityLabel("字段 \(column.name)")
             if editable {
-                Toggle("NULL", isOn: Binding(get: { store.draft[index].isNull }, set: { store.draft[index] = $0 ? .null : .text(original.string ?? "") }))
+                Toggle("NULL", isOn: Binding(get: { value.wrappedValue.isNull }, set: { value.wrappedValue = $0 ? .null : .text(original.string ?? "") }))
                     .toggleStyle(.checkbox).font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary).disabled(store.busy)
             }
         }

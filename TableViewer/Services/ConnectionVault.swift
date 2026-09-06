@@ -1,9 +1,84 @@
 import Foundation
 import Security
+import AppKit
+
+/// Only successful reads/writes are reused, and only in this process.
+/// Separate locks let a security notification invalidate an in-flight Keychain operation.
+final class CredentialSessionStore: @unchecked Sendable {
+    private let operations = NSLock()
+    private let state = NSLock()
+    private var values: [UUID: String] = [:]
+    private var revision = 0
+    private var enabled: Bool
+    private let load: (UUID) throws -> String?
+    private let persist: (String, UUID) throws -> Void
+    private let delete: (UUID) throws -> Void
+
+    init(enabled: Bool = true, load: @escaping (UUID) throws -> String?, persist: @escaping (String, UUID) throws -> Void, delete: @escaping (UUID) throws -> Void) {
+        self.enabled = enabled; self.load = load; self.persist = persist; self.delete = delete
+    }
+    func setEnabled(_ enabled: Bool) {
+        state.withLock { self.enabled = enabled; values.removeAll(); revision += 1 }
+    }
+    func clear() {
+        state.withLock { values.removeAll(); revision += 1 }
+    }
+    func read(id: UUID) throws -> String {
+        operations.lock(); defer { operations.unlock() }
+        let (cached, version) = state.withLock { (values[id], revision) }
+        if let cached { return cached }
+        guard let secret = try load(id) else { return "" } // Missing items must remain retryable.
+        remember(secret, id: id, version: version)
+        return secret
+    }
+    func save(_ secret: String, id: UUID) throws {
+        operations.lock(); defer { operations.unlock() }
+        let unchanged = state.withLock { values[id] == secret }
+        if unchanged { return }
+        let version = state.withLock { values[id] = nil; return revision }
+        try persist(secret, id)
+        remember(secret, id: id, version: version)
+    }
+    func remove(id: UUID) throws {
+        operations.lock(); defer { operations.unlock() }
+        state.withLock { values[id] = nil }
+        try delete(id)
+    }
+    private func remember(_ secret: String, id: UUID, version: Int) {
+        state.withLock {
+            // A lock/sleep notification during the system prompt must win over its completion.
+            if enabled && revision == version { values[id] = secret }
+        }
+    }
+}
 
 enum ConnectionVault {
     static let service = "local.yuna.TableViewer.connections"
+    private static let credentials = CredentialSessionStore(enabled: false, load: readKeychain, persist: saveKeychain, delete: removeKeychain)
+    @MainActor private static var observers: [NSObjectProtocol] = []
+    @MainActor private static var observationStatus: OSStatus?
+    @discardableResult @MainActor static func startSession() -> OSStatus {
+        if let observationStatus { return observationStatus }
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
+            observers.append(center.addObserver(forName: name, object: nil, queue: nil) { _ in credentials.clear() })
+        }
+        // This app uses the macOS file-based Keychain. Keep its lock and external-edit
+        // notifications until migrating storage; do not change existing item ACLs.
+        let status = SecKeychainAddCallback({ event, info, _ in
+            if event == .lockEvent || info.pointee.pid != getpid() { ConnectionVault.credentials.clear() }
+            return errSecSuccess
+        }, [.lockEventMask, .addEventMask, .updateEventMask, .deleteEventMask], nil)
+        credentials.setEnabled(status == errSecSuccess)
+        observationStatus = status
+        return status
+    }
     static func save(_ secret: String, id: UUID) throws {
+        try credentials.save(secret, id: id)
+    }
+    static func read(id: UUID) throws -> String { try credentials.read(id: id) }
+    static func remove(id: UUID) throws { try credentials.remove(id: id) }
+    private static func saveKeychain(_ secret: String, id: UUID) throws {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: id.uuidString]
         let data = Data(secret.utf8)
         let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
@@ -15,15 +90,22 @@ enum ConnectionVault {
             guard added == errSecSuccess else { throw DatabaseFailure(String(localized: "无法将连接凭据存入钥匙串（\(added)）。")) }
         } else if status != errSecSuccess { throw DatabaseFailure(String(localized: "钥匙串更新失败（\(status)）。")) }
     }
-    static func read(id: UUID) throws -> String {
+    private static func readKeychain(id: UUID) throws -> String? {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: id.uuidString, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        if status == errSecItemNotFound { return "" }
-        guard status == errSecSuccess, let data = item as? Data else { throw DatabaseFailure(String(localized: "无法读取钥匙串凭据（\(status)）。")) }
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = item as? Data else { throw readFailure(status) }
         return String(decoding: data, as: UTF8.self)
     }
-    static func remove(id: UUID) throws {
+    static func readFailure(_ status: OSStatus) -> DatabaseFailure {
+        switch status {
+        case errSecUserCanceled: return DatabaseFailure(String(localized: "已取消读取钥匙串凭据。"))
+        case errSecAuthFailed: return DatabaseFailure(String(localized: "钥匙串未授权读取凭据，请重试并允许访问。"))
+        default: return DatabaseFailure(String(localized: "无法读取钥匙串凭据（\(status)）。"))
+        }
+    }
+    private static func removeKeychain(id: UUID) throws {
         let status = SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: id.uuidString] as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw DatabaseFailure(String(localized: "钥匙串删除失败（\(status)）。")) }
     }

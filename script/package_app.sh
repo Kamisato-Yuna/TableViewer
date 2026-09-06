@@ -13,6 +13,7 @@ mkdir -p dist
 STAGING=$(mktemp -d "$PWD/dist/.package.XXXXXX")
 trap 'rm -rf "$STAGING"' EXIT
 ditto .build/Xcode/Build/Products/Release/TableViewer.app "$STAGING/TableViewer.app"
+python3 script/sign_sparkle.py "$STAGING/TableViewer.app" "$IDENTITY"
 # Verify before replacing the generated output; never merge an old notarization ticket.
 codesign --verify --deep --strict "$STAGING/TableViewer.app"
 rm -rf "$PWD/dist/TableViewer.app"
