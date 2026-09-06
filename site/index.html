@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f9fc" />
+    <title>TableViewer — 让数据，清晰可见。</title>
+    <meta
+      name="description"
+      content="为 macOS 而生的开源数据库工作台。原生连接 SQLite、PostgreSQL 与 MongoDB，轻盈地浏览、编辑、查询，配备由你掌控的 Agent 助手。"
+    />
+    <meta property="og:title" content="TableViewer — 让数据，清晰可见。" />
+    <meta
+      property="og:description"
+      content="为 macOS 而生的轻盈数据库工作台。SQLite · PostgreSQL · MongoDB，开源免费。"
+    />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:url"
+      content="https://kamisato-yuna.github.io/TableViewer/"
+    />
+    <meta
+      property="og:image"
+      content="https://kamisato-yuna.github.io/TableViewer/assets/workspace-zh-Hans.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://kamisato-yuna.github.io/TableViewer/" />
+    <link rel="icon" href="assets/app-icon.png" type="image/png" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <svg
+      class="symbol-library"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <symbol id="arrow-up-right" viewBox="0 0 24 24">
+          <path d="M6 18 18 6M6 6h12v12" />
+        </symbol>
+        <symbol id="arrow-down" viewBox="0 0 24 24">
+          <path d="M12 3v14m-6-6 6 6 6-6M5 21h14" />
+        </symbol>
+        <symbol id="search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="database" viewBox="0 0 24 24">
+          <ellipse cx="12" cy="5" rx="8" ry="3" />
+          <path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" />
+        </symbol>
+        <symbol id="play" viewBox="0 0 24 24">
+          <path d="m8 5 11 7-11 7Z" />
+        </symbol>
+      </defs>
+    </svg>
+    <a class="skip-link" href="#main">跳至主要内容</a>
+    <header class="header">
+      <nav class="nav glass" aria-label="主导航">
+        <a class="brand" href="#top" aria-label="TableViewer 首页"
+          ><img src="assets/app-icon.png" width="36" height="36" alt="" /><span
+            >TableViewer</span
+          ></a
+        >
+        <div class="nav-links">
+          <a href="#experience">产品体验</a><a href="#philosophy">设计理念</a
+          ><a href="#download">下载</a
+          ><a
+            href="https://github.com/Kamisato-Yuna/TableViewer"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub <svg class="icon"><use href="#arrow-up-right" /></svg
+          ></a>
+        </div>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title">让数据，<span>清晰可见。</span></h1>
+          <p class="hero-description">
+            为 macOS 而生的轻盈数据库工作台。<br />连接、探索与编辑，让专注回到数据本身。
+          </p>
+          <div class="actions">
+            <a class="button primary" href="{{DOWNLOAD_URL}}"
+              >下载 macOS 版
+              <svg class="icon"><use href="#arrow-down" /></svg></a
+            ><a class="button secondary glass" href="#experience">探索工作台</a>
+          </div>
+          <p class="compatibility">
+            macOS 26+ <span>·</span> Apple Silicon <span>·</span> 开源免费
+          </p>
+        </div>
+        <figure class="product-figure">
+          <button
+            class="product-window"
+            id="open-screenshot"
+            aria-label="放大查看 TableViewer 真实界面"
+          >
+            <img
+              src="assets/workspace-zh-Hans.png"
+              width="1229"
+              height="768"
+              alt="TableViewer 真实界面：左侧数据库导航、中间 projects 数据表、右侧记录详情"
+              fetchpriority="high"
+            />
+            <span class="zoom-hint"
+              >查看真实界面
+              <svg class="icon"><use href="#arrow-up-right" /></svg
+            ></span>
+          </button>
+          <figcaption class="database-list">
+            <span
+              ><svg class="icon"><use href="#database" /></svg>SQLite</span
+            ><i aria-hidden="true">·</i
+            ><span
+              ><svg class="icon"><use href="#database" /></svg>PostgreSQL</span
+            ><i aria-hidden="true">·</i
+            ><span
+              ><svg class="icon"><use href="#database" /></svg>MongoDB</span
+            >
+          </figcaption>
+        </figure>
+      </section>
+
+      <section
+        class="experience section-wrap"
+        id="experience"
+        aria-labelledby="experience-title"
+      >
+        <div class="section-heading reveal">
+          <h2 id="experience-title">从一行记录，<span>到整个思路。</span></h2>
+          <p>熟悉的操作，流畅地发生。</p>
+        </div>
+        <div class="tabs glass" role="tablist" aria-label="探索产品能力">
+          <button
+            id="tab-browse"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-browse"
+            tabindex="0"
+          >
+            浏览与编辑
+          </button>
+          <button
+            id="tab-query"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-query"
+            tabindex="-1"
+          >
+            查询与导出
+          </button>
+          <button
+            id="tab-agent"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-agent"
+            tabindex="-1"
+          >
+            Agent 助手
+          </button>
+        </div>
+        <div class="demo glass reveal">
+          <div
+            id="panel-browse"
+            class="demo-panel"
+            role="tabpanel"
+            aria-labelledby="tab-browse"
+          >
+            <div class="demo-workspace">
+              <div class="table-area">
+                <div class="workspace-toolbar">
+                  <span class="traffic-lights" aria-hidden="true"
+                    ><i></i><i></i><i></i></span
+                  ><strong>projects</strong
+                  ><label class="search-field"
+                    ><svg class="icon"><use href="#search" /></svg
+                    ><input
+                      id="project-search"
+                      type="search"
+                      placeholder="筛选示例项目"
+                      aria-label="筛选示例项目"
+                  /></label>
+                </div>
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th scope="col">名称</th>
+                        <th scope="col">状态</th>
+                        <th scope="col">进度</th>
+                      </tr>
+                    </thead>
+                    <tbody id="project-rows"></tbody>
+                  </table>
+                </div>
+                <p id="record-count" class="table-status" role="status">
+                  4 条记录 · 点击项目以编辑
+                </p>
+              </div>
+              <form id="record-form" class="inspector">
+                <label
+                  >名称<input
+                    id="record-name"
+                    required
+                    maxlength="60"
+                    autocomplete="off"
+                /></label>
+                <label
+                  >状态<select id="record-status">
+                    <option value="active">进行中</option>
+                    <option value="done">已完成</option>
+                  </select></label
+                >
+                <label
+                  >进度
+                  <output id="progress-value" for="record-progress">72%</output
+                  ><input
+                    id="record-progress"
+                    type="range"
+                    aria-label="项目进度"
+                    min="0"
+                    max="100"
+                    value="72"
+                /></label>
+                <label
+                  >描述<textarea
+                    id="record-description"
+                    maxlength="160"
+                    rows="3"
+                  ></textarea>
+                </label>
+                <div class="inspector-actions">
+                  <button class="small-button" type="reset">取消</button
+                  ><button class="small-button blue" type="submit">保存</button>
+                </div>
+                <span class="save-status" id="save-status" role="status"></span>
+              </form>
+            </div>
+            <div class="demo-copy">
+              <h3>看见细节，<br />保持全局。</h3>
+              <p>浏览表与集合，在详情面板编辑记录。每一次修改，都清楚可见。</p>
+              <small>交互示意 · 示例数据<br />修改仅保留在当前页面</small>
+            </div>
+          </div>
+          <div
+            id="panel-query"
+            class="demo-panel"
+            role="tabpanel"
+            aria-labelledby="tab-query"
+            hidden
+          >
+            <div class="query-workspace">
+              <div class="workspace-toolbar">
+                <span class="traffic-lights" aria-hidden="true"
+                  ><i></i><i></i><i></i></span
+                ><strong>查询工作台</strong
+                ><span class="toolbar-detail">SQLite · 示例</span>
+              </div>
+              <div class="code-editor">
+                <span class="code-line">1</span
+                ><code><b>SELECT</b> name, progress</code
+                ><span class="code-line">2</span
+                ><code><b>FROM</b> projects</code
+                ><span class="code-line">3</span
+                ><code><b>WHERE</b> progress &gt;= <em>70</em></code
+                ><span class="code-line">4</span
+                ><code><b>ORDER BY</b> progress <b>DESC</b>;</code>
+              </div>
+              <div class="query-actions">
+                <button id="run-query" class="small-button blue">
+                  <svg class="icon"><use href="#play" /></svg
+                  >运行示例查询</button
+                ><button id="export-csv" class="small-button" disabled>
+                  导出 CSV <svg class="icon"><use href="#arrow-down" /></svg>
+                </button>
+              </div>
+              <div class="query-results" id="query-results" aria-live="polite">
+                <p class="empty-state">
+                  运行查询，让结果浮现。<br /><small
+                    >使用当前页面的示例项目，无需连接数据库。</small
+                  >
+                </p>
+              </div>
+            </div>
+            <div class="demo-copy">
+              <h3>把想法，<br />写成查询。</h3>
+              <p>运行 SQL 或 MongoDB JSON 命令，将已加载的结果导出为 CSV。</p>
+              <small>交互示意 · 固定查询<br />实际应用支持 ⌘↵ 运行</small>
+            </div>
+          </div>
+          <div
+            id="panel-agent"
+            class="demo-panel"
+            role="tabpanel"
+            aria-labelledby="tab-agent"
+            hidden
+          >
+            <div class="agent-workspace">
+              <div class="workspace-toolbar">
+                <span class="traffic-lights" aria-hidden="true"
+                  ><i></i><i></i><i></i></span
+                ><strong>Agent 助手</strong
+                ><span class="toolbar-detail">本地流程示意</span>
+              </div>
+              <div class="agent-conversation">
+                <p class="user-message">帮我找出进度达到 70% 的项目。</p>
+                <p class="agent-message">
+                  可以。我建议在当前连接执行以下查询，请先确认操作。
+                </p>
+                <div class="operation">
+                  <div class="operation-heading">
+                    <strong>execute_query</strong><span>Studio · SQLite</span>
+                  </div>
+                  <code
+                    >SELECT name, progress<br />FROM projects WHERE progress
+                    &gt;= 70;</code
+                  >
+                  <div id="agent-actions">
+                    <button id="approve-operation" class="small-button blue">
+                      确认执行一次</button
+                    ><button id="reject-operation" class="small-button">
+                      拒绝
+                    </button>
+                  </div>
+                </div>
+                <div id="agent-result" role="status"></div>
+              </div>
+            </div>
+            <div class="demo-copy">
+              <h3>多一份灵感，<br />每一步由你。</h3>
+              <p>
+                连接自己的兼容
+                API。操作先确认，执行结果留在本机，由你决定是否发送给模型。
+              </p>
+              <small>交互示意 · 不连接 AI 服务<br />不会向外发送示例数据</small
+              ><button id="reset-agent" class="text-button">重新体验</button>
+            </div>
+          </div>
+        </div>
+        <noscript
+          ><p class="noscript-note">
+            启用 JavaScript 可体验示例表格、查询与 Agent
+            流程。真实界面与下载入口仍可正常使用。
+          </p></noscript
+        >
+        <div class="principles" id="philosophy">
+          <article class="reveal">
+            <span class="principle-number">01</span>
+            <h3>原生，恰到好处。</h3>
+            <p>
+              SwiftUI + AppKit，与 macOS 自然相融。玻璃承托操作，内容始终清晰。
+            </p>
+          </article>
+          <article class="reveal">
+            <span class="principle-number">02</span>
+            <h3>多种数据，一处专注。</h3>
+            <p>
+              SQLite、PostgreSQL、MongoDB。从本地文件到数据库服务，保持熟悉的工作节奏。
+            </p>
+          </article>
+          <article class="reveal">
+            <span class="principle-number">03</span>
+            <h3>智能，仍由你掌控。</h3>
+            <p>
+              操作先确认，结果由你决定是否发送。连接凭据与 API Key 保存在 macOS
+              钥匙串。
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="download" id="download" aria-labelledby="download-title">
+        <div class="section-wrap">
+          <div class="download-heading reveal">
+            <img
+              class="download-icon"
+              src="assets/app-icon.png"
+              width="112"
+              height="112"
+              alt="TableViewer 数据透镜图标"
+              loading="lazy"
+            />
+            <h2 id="download-title">下一次专注，<span>从这里开始。</span></h2>
+            <p>下载 TableViewer，把工作台留给数据。</p>
+            <a class="button primary" href="{{DOWNLOAD_URL}}"
+              ><svg class="icon"><use href="#arrow-down" /></svg>下载
+              {{VERSION}}</a
+            >
+            <p class="compatibility">
+              macOS 26+ <span>·</span> Apple Silicon <span>·</span> {{SIZE}}
+            </p>
+          </div>
+          <article class="release glass reveal" aria-label="最新版本发布信息">
+            <div class="release-version">
+              <h3>{{VERSION}}</h3>
+              <time datetime="{{DATE_ISO}}">{{DATE}}</time
+              ><a
+                class="text-link"
+                href="{{RELEASE_URL}}"
+                target="_blank"
+                rel="noopener noreferrer"
+                >完整发布说明
+                <svg class="icon"><use href="#arrow-up-right" /></svg
+              ></a>
+            </div>
+            <div class="release-notes">
+              <h3>{{RELEASE_NAME}}</h3>
+              <ul>
+                {{RELEASE_NOTES}}
+              </ul>
+            </div>
+          </article>
+          <div class="release-details">
+            <p>v0.2.0 安装包：Developer ID 签名 · Apple 公证</p>
+            <p>
+              最低 macOS 26；v0.2.0 已在 macOS 27 beta 验证，macOS 26 运行与
+              Intel 尚未验收。
+            </p>
+            <p>
+              下载 ZIP，解压后移入「应用程序」。<a
+                href="https://github.com/Kamisato-Yuna/TableViewer/blob/main/docs/testing.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                >查看验证说明</a
+              >
+            </p>
+          </div>
+          <details class="scope">
+            <summary>
+              使用前，了解当前范围 <span aria-hidden="true">+</span>
+            </summary>
+            <p>
+              TableViewer 聚焦浏览、编辑、查询与 CSV 导出。当前未提供 SSH
+              隧道、SQL 自动补全、CSV 导入或多连接并行标签。CSV
+              导出已加载结果，筛选仅作用于当前页。
+            </p>
+            <p>
+              Agent 助手需自行配置兼容 Chat Completions 的服务。内置 MongoDB
+              Shell 覆盖常用交互，不包含完整 mongosh / Node.js 环境。当前未在
+              App Store 上架。
+            </p>
+            <a
+              class="text-link"
+              href="https://github.com/Kamisato-Yuna/TableViewer/blob/main/README.zh-CN.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              >阅读完整使用指南
+              <svg class="icon"><use href="#arrow-up-right" /></svg
+            ></a>
+          </details>
+        </div>
+      </section>
+    </main>
+    <footer class="footer section-wrap">
+      <div class="footer-top">
+        <a class="brand" href="#top"
+          ><img src="assets/app-icon.png" width="30" height="30" alt="" /><span
+            >TableViewer</span
+          ></a
+        >
+        <div class="footer-links">
+          <a
+            href="https://github.com/Kamisato-Yuna/TableViewer"
+            target="_blank"
+            rel="noopener noreferrer"
+            >项目 GitHub
+            <svg class="icon"><use href="#arrow-up-right" /></svg></a
+          ><a
+            href="https://github.com/Kamisato-Yuna"
+            target="_blank"
+            rel="noopener noreferrer"
+            >作者 Kamisato Yuna
+            <svg class="icon"><use href="#arrow-up-right" /></svg></a
+          ><a
+            href="https://github.com/Kamisato-Yuna/TableViewer/blob/main/docs/privacy.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            >隐私政策 <svg class="icon"><use href="#arrow-up-right" /></svg
+          ></a>
+        </div>
+      </div>
+      <p>
+        以
+        <a
+          href="https://github.com/Kamisato-Yuna/TableViewer/blob/main/LICENSE"
+          target="_blank"
+          rel="noopener noreferrer"
+          >MIT 协议</a
+        >开源。为热爱专注的人而作。
+      </p>
+    </footer>
+    <dialog id="screenshot-dialog" aria-label="TableViewer 真实界面大图">
+      <div class="dialog-toolbar">
+        <span>TableViewer · 简体中文真实界面</span
+        ><button id="close-screenshot" class="small-button" autofocus>
+          关闭 <kbd>Esc</kbd>
+        </button>
+      </div>
+      <img
+        src="assets/workspace-zh-Hans.png"
+        width="1229"
+        height="768"
+        alt="TableViewer 数据库工作台完整界面"
+      />
+    </dialog>
+  </body>
+</html>
