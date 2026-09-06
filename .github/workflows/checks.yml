@@ -4,16 +4,54 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   source:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Python and shell syntax
         run: |
           python3 -m compileall -q script
           for script in script/*.sh; do bash -n "$script"; done
       - name: Localization resources
         run: python3 script/check_localizations.py
+
+  macos:
+    name: macOS build and tests
+    # The current Icon Composer resource requires the Xcode 27 toolchain.
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Toolchain
+        run: |
+          uname -m
+          xcodebuild -version
+          sw_vers
+      - name: Prepare database drivers
+        run: |
+          brew update
+          brew install libpq mongo-c-driver
+          python3 script/bootstrap_drivers.py
+      - name: Build Release without distribution credentials
+        env:
+          TABLEVIEWER_CODE_SIGN_IDENTITY: '-'
+        run: ./script/package_app.sh
+      - name: SQLite integration
+        run: ./script/test_databases.sh
+      - name: Reliability regression
+        run: ./script/test_reliability.sh
+      - name: Verify DMG layout and embedded app
+        run: |
+          ./script/package_dmg.sh
+          MOUNT=$(mktemp -d)
+          trap 'hdiutil detach "$MOUNT" || true; rmdir "$MOUNT" || true' EXIT
+          hdiutil attach dist/TableViewer-*-macOS-arm64.dmg -readonly -nobrowse -mountpoint "$MOUNT"
+          test -d "$MOUNT/TableViewer.app"
+          test "$(readlink "$MOUNT/Applications")" = /Applications
+          codesign --verify --deep --strict "$MOUNT/TableViewer.app"

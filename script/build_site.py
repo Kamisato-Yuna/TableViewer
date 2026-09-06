@@ -16,10 +16,10 @@ def release_values(release):
     if release.get("draft") or release.get("prerelease"):
         raise ValueError("Pages downloads must use a published stable release")
     asset = next((asset for asset in release["assets"]
-                  if re.fullmatch(r"TableViewer-[\w.+-]+-macOS-arm64\.zip", asset["name"])
+                  if re.fullmatch(r"TableViewer-[\w.+-]+-macOS-arm64\.dmg", asset["name"])
                   and asset.get("state") == "uploaded"), None)
     if not asset:
-        raise ValueError("The release does not contain a published macOS arm64 ZIP")
+        raise ValueError("The release does not contain a published macOS arm64 DMG")
     urls = [release["html_url"], asset["browser_download_url"]]
     for url in urls:
         parsed = urlparse(url)

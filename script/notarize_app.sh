@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+: "${TABLEVIEWER_CODE_SIGN_IDENTITY:?Set your Developer ID Application signing identity}"
 : "${TABLEVIEWER_NOTARY_PROFILE:?Set the name of an existing notarytool Keychain profile}"
 APP="${1:-dist/TableViewer.app}"
 codesign --verify --deep --strict "$APP"
@@ -19,6 +20,4 @@ PY
 xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 spctl --assess --type execute --verbose=2 "$APP"
-VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
-ditto -c -k --keepParent "$APP" "dist/TableViewer-${VERSION}-macOS-arm64.zip"
-echo "Notarized archive: dist/TableViewer-${VERSION}-macOS-arm64.zip"
+./script/notarize_dmg.sh "$APP"

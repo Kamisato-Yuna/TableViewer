@@ -16,7 +16,7 @@ Run `script/check_localizations.py`, `script/test_databases.sh`, `script/test_re
 
 The two workspace images in `docs/screenshots/` show only the built-in Studio sample. Chinese database values remain Chinese in English mode because database content is never translated.
 
-GitHub Actions checks Python/shell syntax and localization resources. It does not build or notarize the macOS app. macOS 26 runtime, Intel, real remote TLS/SRV deployments, real AI providers, TestFlight, and App Store review are not certified by these checks.
+GitHub Actions checks Python/shell syntax and localization resources, builds the Release app on macOS, runs SQLite and reliability regression, and mounts the generated DMG to verify its layout and embedded signature. CI does not perform distribution signing or notarization. Interactive macOS 26 app compatibility, Intel, real remote TLS/SRV deployments, real AI providers, TestFlight, and App Store review are not certified by these checks.
 
 ## Apple distribution evidence
 
@@ -24,6 +24,6 @@ GitHub Actions checks Python/shell syntax and localization resources. It does no
 - Apple notarization: **Accepted**; submission `274a1096-0cbf-45ac-b61b-9ba56c0d2e39`.
 - `stapler staple` and `stapler validate`: passed.
 - `spctl --assess --type execute`: accepted, `Notarized Developer ID`.
-- Public asset: `TableViewer-0.2.0-macOS-arm64.zip`, containing the stapled app.
+- The initial ZIP distribution has been replaced by `TableViewer-0.2.0-macOS-arm64.dmg`, containing the same app and an Applications shortcut.
 
 This is distribution outside the Mac App Store; App Store approval has not been obtained.
