@@ -33,7 +33,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh api repos/${{ github.repository }}/releases/latest > "$RUNNER_TEMP/release.json"
       - name: Build the product website
-        run: python3 script/build_site.py --release-json "$RUNNER_TEMP/release.json"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if jq -e '.assets[] | select(.name == "appcast.xml")' "$RUNNER_TEMP/release.json" > /dev/null; then
+            TAG=$(jq -r .tag_name "$RUNNER_TEMP/release.json")
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern appcast.xml --dir "$RUNNER_TEMP"
+            python3 script/build_site.py --release-json "$RUNNER_TEMP/release.json" --appcast "$RUNNER_TEMP/appcast.xml"
+          else
+            python3 script/build_site.py --release-json "$RUNNER_TEMP/release.json"
+          fi
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site

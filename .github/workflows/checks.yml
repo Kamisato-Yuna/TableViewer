@@ -20,6 +20,8 @@ jobs:
           for script in script/*.sh; do bash -n "$script"; done
       - name: Localization resources
         run: python3 script/check_localizations.py
+      - name: Update feed publishing
+        run: python3 -m unittest discover -s Tests -p 'test_update_feed.py' -v
 
   macos:
     name: macOS build and tests

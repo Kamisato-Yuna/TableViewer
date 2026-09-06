@@ -29,10 +29,10 @@ struct ReplicaSnapshot: Sendable {
         let topology = hello["msg"] as? String == "isdbgrid" ? String(localized: "分片路由") : name.isEmpty ? String(localized: "独立实例") : String(localized: "副本集")
         let rawMembers = status?["members"] as? [[String: Any]] ?? []
         let primary = rawMembers.first { $0["stateStr"] as? String == "PRIMARY" }
-        let primaryDate = primary.flatMap { bsonDate($0["optimeDate"]) }
+        let primaryDate = primary.flatMap { bsonNumber($0["health"]) == 1 ? bsonDate($0["optimeDate"]) : nil }.flatMap { $0.timeIntervalSince1970 > 0 ? $0 : nil }
         var members = rawMembers.map { member in
-            let date = bsonDate(member["optimeDate"])
-            let lag = primaryDate.flatMap { p in date.map { max(0, p.timeIntervalSince($0)) } }
+            let date = bsonDate(member["optimeDate"]).flatMap { $0.timeIntervalSince1970 > 0 ? $0 : nil }
+            let lag = bsonNumber(member["health"]) == 1 ? primaryDate.flatMap { p in date.map { max(0, p.timeIntervalSince($0)) } } : nil
             return ReplicaMember(name: member["name"] as? String ?? String(localized: "未知节点"), role: member["stateStr"] as? String ?? "UNKNOWN", healthy: bsonNumber(member["health"]).map { $0 == 1 }, lagSeconds: lag, pingMS: bsonNumber(member["pingMs"]), uptime: member["uptime"].map { numericValue($0) }, syncSource: member["syncSourceHost"] as? String ?? "", isSelf: member["self"] as? Bool == true, heartbeatMessage: member["lastHeartbeatMessage"] as? String ?? "")
         }
         if members.isEmpty {

@@ -32,6 +32,7 @@ struct ConnectionSheet: View {
                     } label: {
                         VStack(spacing: 10) { Image(systemName: kind.symbol).font(.system(size: 25, weight: .light)); Text(kind.rawValue).font(.system(size: 12, weight: .medium)) }
                             .frame(maxWidth: .infinity).frame(height: 87)
+                            .contentShape(.rect(cornerRadius: 12))
                             .foregroundStyle(profile.kind == kind ? Color.accentColor : Color.secondary)
                             .background(profile.kind == kind ? Color.accentColor.opacity(0.08) : Color.clear, in: .rect(cornerRadius: 12))
                             .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(profile.kind == kind ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.09)) }

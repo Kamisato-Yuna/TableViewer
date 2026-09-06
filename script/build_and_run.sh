@@ -6,7 +6,9 @@ MODE="${1:-run}"
 case "$MODE" in run|--verify|--debug|--logs|--telemetry|--build) ;; *) echo "usage: $0 [--build|--verify|--debug|--logs|--telemetry]" >&2; exit 2 ;; esac
 if [[ ! -f .build/lib/libmongoc2.2.dylib ]]; then python3 script/bootstrap_drivers.py; fi
 if [[ "$MODE" != --build ]]; then pkill -x TableViewer >/dev/null 2>&1 || true; fi
-xcodebuild -project TableViewer.xcodeproj -scheme TableViewer -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/Xcode -quiet build
+SIGNING_OPTIONS=("CODE_SIGN_IDENTITY=${TABLEVIEWER_CODE_SIGN_IDENTITY:--}")
+if [[ -n "${TABLEVIEWER_DEVELOPMENT_TEAM:-}" ]]; then SIGNING_OPTIONS+=("DEVELOPMENT_TEAM=$TABLEVIEWER_DEVELOPMENT_TEAM"); fi
+xcodebuild -project TableViewer.xcodeproj -scheme TableViewer -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/Xcode -quiet "${SIGNING_OPTIONS[@]}" build
 APP_BUNDLE="$ROOT_DIR/.build/Xcode/Build/Products/Debug/TableViewer.app"
 case "$MODE" in
   --build) echo "Built: $APP_BUNDLE" ;;

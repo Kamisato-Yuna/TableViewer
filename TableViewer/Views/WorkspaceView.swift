@@ -2,7 +2,6 @@ import SwiftUI
 
 struct WorkspaceView: View {
     @Bindable var store: WorkspaceStore
-    @AppStorage("appearance") private var appearance = "system"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         NavigationSplitView {
@@ -10,7 +9,8 @@ struct WorkspaceView: View {
                 .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
         } detail: {
             VStack(spacing: 0) {
-                if store.active != nil { workspace }
+                if store.tab == .agent { AgentView(store: store) }
+                else if store.active != nil { workspace }
                 else { welcome }
                 StatusBar(store: store)
             }
@@ -28,7 +28,7 @@ struct WorkspaceView: View {
                     .help("新建连接 ⌘N")
                 Button { if store.allowNavigation() { store.tab = .query } } label: { Label("查询编辑器", systemImage: "terminal") }
                     .disabled(store.active == nil)
-                Button { if store.allowNavigation() { store.tab = .agent } } label: { Label("Agent 助手", systemImage: "sparkles") }.disabled(store.active == nil)
+                Button { store.openAgentHistory() } label: { Label("Agent 会话", systemImage: "sparkles") }
             }
             ToolbarSpacer(.fixed)
             ToolbarItem {
@@ -51,7 +51,6 @@ struct WorkspaceView: View {
         .confirmationDialog("移除连接？", isPresented: Binding(get: { store.removingProfile != nil }, set: { if !$0 { store.removingProfile = nil } }), titleVisibility: .visible) {
             if let profile = store.removingProfile { Button("移除连接", role: .destructive) { Task { await store.removeConnection(profile) } } }
         } message: { Text("仅移除保存的连接与凭据，数据库文件和数据会保留。") }
-        .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
     }
 
     private var workspace: some View {
@@ -189,11 +188,17 @@ struct SidebarView: View {
                         }
                     }
                 } header: { Text("连接").font(.system(size: 10, weight: .semibold)).tracking(1) }
+                Section("Agent") {
+                    Button { store.openAgentHistory() } label: {
+                        Label("所有会话", systemImage: "bubble.left.and.bubble.right").font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+                    }.buttonStyle(.plain)
+                    if store.agentLibrary.workingCount > 0 { Text("\(store.agentLibrary.workingCount) 个会话进行中").font(.system(size: 10)).foregroundStyle(.secondary) }
+                    if store.agentLibrary.needsAttentionCount > 0 { Text("\(store.agentLibrary.needsAttentionCount) 个会话等待处理").font(.system(size: 10)).foregroundStyle(.secondary) }
+                }
                 if store.active != nil {
                     Section("工作台") {
                         workspaceLink(.query)
                         if store.active?.kind == .mongodb { workspaceLink(.shell); workspaceLink(.replica) }
-                        workspaceLink(.agent)
                     }
                     Section {
                         HStack(spacing: 6) {
