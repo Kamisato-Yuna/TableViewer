@@ -56,7 +56,7 @@ python3 script/check_localizations.py
 python3 script/test_features.py
 ```
 
-See [CONTRIBUTING](CONTRIBUTING.md), [release instructions](docs/releasing.md), and [validation scope](docs/testing.md). GitHub Actions checks source syntax and translation resources, builds the app on macOS, runs SQLite and reliability tests, and verifies DMG packaging. Distribution signing, notarization, and interactive UI checks remain separate.
+See [CONTRIBUTING](CONTRIBUTING.md), [release instructions](docs/releasing.md), and [validation scope](docs/testing.md). GitHub Actions checks source syntax and translation resources, builds the app on macOS, runs SQLite and reliability tests, and verifies DMG packaging. Release validation and interactive UI checks remain separate.
 
 ## Scope
 
