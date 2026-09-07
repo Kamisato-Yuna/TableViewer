@@ -66,7 +66,7 @@ struct InspectorView: View {
                 Spacer(minLength: 4)
                 Text(column.type.isEmpty ? "TEXT" : column.type.uppercased()).font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.tertiary).lineLimit(1)
             }
-            TextField("NULL", text: Binding(get: { value.wrappedValue.isNull ? "" : value.wrappedValue.display }, set: { value.wrappedValue = .text($0) }), axis: .vertical)
+            TextField(value.wrappedValue.isNull ? "NULL" : "", text: Binding(get: { value.wrappedValue.isNull ? "" : value.wrappedValue.display }, set: { value.wrappedValue = .text($0) }), axis: .vertical)
                 .font(.system(size: 12, design: column.isPrimaryKey ? .monospaced : .default))
                 .lineLimit(1...6).textFieldStyle(.plain).padding(10)
                 .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 7))
@@ -80,20 +80,4 @@ struct InspectorView: View {
         }
     }
     private func isBlob(_ value: CellValue) -> Bool { if case .blob = value { true } else { false } }
-}
-
-struct StructureView: View {
-    @Bindable var store: WorkspaceStore
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack { Text(store.active?.kind == .mongodb ? String(localized: "当前页文档字段") : String(localized: "表结构")).font(.system(size: 12, weight: .medium)); Spacer(); Text("\(store.result.columns.count) 个字段").foregroundStyle(.secondary) }.padding(24)
-            Table(store.result.columns) {
-                TableColumn("字段") { column in Label(column.name, systemImage: column.isPrimaryKey ? "key.horizontal" : "text.alignleft").font(.system(size: 12, design: .monospaced)) }
-                TableColumn("类型") { Text($0.type).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary) }
-                TableColumn("主键") { Text($0.isPrimaryKey ? String(localized: "是") : "—").foregroundStyle(.secondary) }.width(60)
-                TableColumn("默认值") { Text($0.defaultValue ?? "—").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary) }
-                TableColumn("写入") { Text($0.isEditable ? String(localized: "可编辑") : String(localized: "自动生成")).font(.system(size: 11)).foregroundStyle(.secondary) }.width(80)
-            }
-        }
-    }
 }

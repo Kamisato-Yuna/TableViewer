@@ -39,7 +39,46 @@ actor ControlledCompletion {
     static func tool(_ name: String, _ arguments: String = "{}") -> AgentMessage {
         AgentMessage(role: "assistant", toolCalls: [AgentToolCall(id: "provider-reused-id", function: AgentFunction(name: name, arguments: arguments))])
     }
+    @MainActor static func approvalTests() async throws {
+        let context = AgentContext(connectionID: UUID(), connectionName: "Approval fixture", kind: .sqlite)
+        let queryCall = AgentToolCall(id: "query", function: AgentFunction(name: "execute_query", arguments: #"{"query":"SELECT 1"}"#))
+        let action = AgentAction(call: queryCall, messageID: UUID(), connectionID: context.connectionID, connectionName: context.connectionName)
+        try check(!AgentApprovalMode.manual.permitsAutomaticExecution(action, kind: .sqlite), "manual never automatically executes")
+        try check(AgentApprovalMode.sensitiveOnly.permitsAutomaticExecution(action, kind: .sqlite), "sensitive mode selects read-only candidate")
+        var write = action; write.call.function.arguments = #"{"query":"DELETE FROM private_data"}"#
+        try check(!AgentApprovalMode.sensitiveOnly.permitsAutomaticExecution(write, kind: .sqlite), "sensitive writes require approval")
+        try check(AgentApprovalMode.automatic.permitsAutomaticExecution(write, kind: .sqlite), "automatic mode honors write approval choice")
+        var question = action; question.call.function.name = "ask_user"
+        try check(!AgentApprovalMode.automatic.permitsAutomaticExecution(question, kind: .sqlite), "automatic never answers for the user")
+        var analyze = action; analyze.call.function.arguments = #"{"query":"EXPLAIN ANALYZE DELETE FROM data"}"#
+        try check(!AgentApprovalMode.sensitiveOnly.permitsAutomaticExecution(analyze, kind: .postgresql), "EXPLAIN ANALYZE is not an automatic read candidate")
+        var mongo = action
+        mongo.call.function.arguments = try jsonText(["query": #"{"delete":"data","find":"data","deletes":[{"q":{},"limit":0}]}"#])
+        try check(!AgentApprovalMode.sensitiveOnly.permitsAutomaticExecution(mongo, kind: .mongodb), "Mongo approval uses the first command field rather than a decoy read key")
+        let session = AgentSession(complete: { _, _, _, _ in AgentMessage(role: "assistant", toolCalls: [queryCall]) })
+        session.configuration = AgentConfiguration(baseURL: "http://localhost:1", model: "controlled")
+        session.approvalMode = .sensitiveOnly
+        var callbackIDs: [String] = []; var forcedReadOnly = false
+        session.onAutomaticActions = { callbackIDs = $0; forcedReadOnly = $1 }
+        session.input = "fixture"; session.send(context: context)
+        try await eventually { !session.running }
+        try check(callbackIDs == session.actions.map(\.id) && forcedReadOnly, "fresh automatic actions require driver read-only enforcement")
+        let stored = StoredAgentSession(session)
+        let restored = try JSONDecoder().decode(StoredAgentSession.self, from: JSONEncoder().encode(stored)).restore()
+        try check(restored.approvalMode == .sensitiveOnly && restored.actions.first?.state == .awaitingApproval, "restore retains policy without running pending history")
+        var oldArchive = try JSONSerialization.jsonObject(with: JSONEncoder().encode(stored)) as! [String: Any]
+        oldArchive.removeValue(forKey: "approvalMode")
+        let old = try JSONDecoder().decode(StoredAgentSession.self, from: JSONSerialization.data(withJSONObject: oldArchive)).restore()
+        try check(old.approvalMode == .manual, "existing archives migrate to manual approval")
+        let id = callbackIDs[0]
+        _ = session.beginExecution(id, connectionID: context.connectionID)
+        session.resolve(id, output: "synthetic result", failed: false)
+        try check(session.canContinue && !session.actions[0].shared && !session.messages.contains { $0.role == "tool" }, "automatic execution never shares local results")
+        try check(ConnectionVault.service(for: "local.yuna.TableViewer") == "local.yuna.TableViewer.connections", "production Keychain namespace stays unchanged")
+        try check(ConnectionVault.service(for: "local.yuna.TableViewer.Acceptance040") != ConnectionVault.service(for: "local.yuna.TableViewer"), "test bundle isolates fixed Agent credential ID")
+    }
     @MainActor static func main() async throws {
+        try await approvalTests()
         let editor = ComposerTextView()
         var submits = 0
         editor.canSubmit = true; editor.submit = { submits += 1 }

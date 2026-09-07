@@ -18,13 +18,15 @@ The app follows your system language. To override it, choose **Settings → Lang
 
 ## Features
 
-- Browse tables, views, collections, and schemas. Sort columns, filter the current 200-row page, and export loaded results to CSV.
-- Edit records with primary keys, including composite keys. Updates use parameter binding and conflict checks. Views, generated fields, and SQLite BLOB fields are read-only in the inspector.
+- Browse an object overview, inspect fields, constraints, indexes and DDL, and follow declared foreign-key relationships. Filter the current 200-row page or confirm a SQL WHERE / MongoDB JSON filter.
+- Select multiple rows, double-click an individual cell to edit it, or open record details. Edit records with primary keys, including composite keys. Updates use parameter binding and conflict checks. Views, generated fields, and SQLite BLOB fields are read-only in the inspector.
 - Edit MongoDB Extended JSON while preserving BSON types. `_id` is immutable; changed top-level fields use `$set` / `$unset`.
-- Run one SQL statement or a MongoDB JSON command at a time. Queries display up to 1,000 rows or the first document batch.
+- Keep named local SQL script tabs with undo/redo, selection execution, font settings, line numbers, comments and adjustable split layouts. SQL scripts execute statements in order, stop on the first failure and retain separate results. MongoDB accepts one JSON command. Queries display up to 1,000 rows or the first document batch.
+- Export loaded results as CSV, TXT, JSON, YAML, XML or SQLite/PostgreSQL INSERT SQL. See the [format and conversion boundaries](docs/RESULT_EXPORTS.md).
+- Review query estimates before execution; unsupported estimates remain explicitly unknown. Read-only mode blocks database mutations.
 - Inspect MongoDB replica-set topology, member health, and replication lag. Missing permissions fall back to topology from `hello`.
 - Use a built-in JavaScriptCore shell with common CRUD, aggregation, variables, cursors, and `rs.status()`. This is a mongosh-style subset without Node.js, npm, filesystem, or OS shell APIs.
-- Optionally connect your own OpenAI-compatible API. Every proposed database operation needs approval; results stay local until you explicitly send them back to the model.
+- Optionally connect your own OpenAI-compatible API. Choose manual approval, approval for sensitive operations, or automatic approval. Commands remain visible; results stay local until you explicitly send them back to the model.
 
 An editable **Studio** SQLite sample opens on first launch. No external account is needed to explore the sample.
 
@@ -60,7 +62,7 @@ See [CONTRIBUTING](CONTRIBUTING.md), [release instructions](docs/releasing.md), 
 
 ## Scope
 
-No SSH tunnels, SQL autocomplete, parallel connection tabs, CSV import, or visual table designer. Replica lag reflects heartbeat snapshots. AI protocol tests use a local mock service and do not certify any real provider. Shell stops and timeouts terminate the worker, but do not roll back completed database writes.
+No SSH tunnels, SQL autocomplete, parallel connection tabs, CSV import, or visual table designer. Replica lag reflects heartbeat snapshots. Protocol tests use a local synthetic service; 0.4.0 also verified MiniMax-M2.7 Chat Completions tool calls in the actual app. This does not certify every provider. Shell stops and timeouts terminate the worker, but do not roll back completed database writes.
 
 ## License and community
 

@@ -6,7 +6,7 @@ actor DatabaseEngine {
     private var sqlite: OpaquePointer?
     private var postgres: OpaquePointer?
     private var mongo: UnsafeMutableRawPointer?
-    private var profile: ConnectionProfile?
+    private(set) var profile: ConnectionProfile?
     private var scopedURLs: [URL] = []
     static let pageSize = 200
     private let postgresQueryTimeout: TimeInterval
@@ -65,11 +65,11 @@ actor DatabaseEngine {
         guard let profile else { throw DatabaseFailure(String(localized: "请先连接数据库。")) }
         switch profile.kind {
         case .sqlite:
-            return try sql("SELECT name, type FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name").rows.map {
+            return try catalogSQL("SELECT name, type FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name").rows.map {
                 DatabaseObject(name: $0.cells[0].display, isView: $0.cells[1].display == "view")
             }
         case .postgresql:
-            return try sql("SELECT table_name, table_schema, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema, table_name").rows.map {
+            return try catalogSQL("SELECT table_name, table_schema, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema, table_name").rows.map {
                 DatabaseObject(name: $0.cells[0].display, schema: $0.cells[1].display, isView: $0.cells[2].display == "VIEW")
             }
         case .mongodb:
@@ -105,7 +105,7 @@ actor DatabaseEngine {
         guard let profile else { throw DatabaseFailure(String(localized: "未连接。")) }
         switch profile.kind {
         case .sqlite:
-            return try sql("PRAGMA table_xinfo(\(quoteIdentifier(object.name)))").rows.map { row in
+            return try catalogSQL("SELECT * FROM pragma_table_xinfo(?) ORDER BY cid", parameters: [.text(object.name)]).rows.map { row in
                 ColumnInfo(name: row.cells[1].display, type: row.cells[2].display, isPrimaryKey: (Int(row.cells[5].display) ?? 0) > 0, isEditable: row.cells.count < 7 || row.cells[6].display == "0", defaultValue: row.cells[4].string)
             }
         case .postgresql:
@@ -117,19 +117,19 @@ actor DatabaseEngine {
               c.is_generated, c.column_default, c.is_identity
             FROM information_schema.columns c WHERE c.table_schema=$1 AND c.table_name=$2 ORDER BY c.ordinal_position
             """
-            return try sql(query, parameters: [.text(object.schema), .text(object.name)]).rows.map { row in
+            return try catalogSQL(query, parameters: [.text(object.schema), .text(object.name)]).rows.map { row in
                 ColumnInfo(name: row.cells[0].display, type: row.cells[1].display, isPrimaryKey: row.cells[2].display == "true", isEditable: row.cells[3].display == "NEVER" && row.cells[5].display != "YES", defaultValue: row.cells[4].string)
             }
         case .mongodb: return []
         }
     }
 
-    func browse(_ object: DatabaseObject, page: Int = 0, sort: String? = nil, ascending: Bool = true) throws -> QueryResult {
+    func browse(_ object: DatabaseObject, page: Int = 0, sort: String? = nil, ascending: Bool = true, condition: String = "") throws -> QueryResult {
         let start = Date()
         guard let profile else { throw DatabaseFailure(String(localized: "未连接。")) }
         var result: QueryResult
         if profile.kind == .mongodb {
-            var command: [String: Any] = ["find": object.name, "filter": [:], "skip": page * Self.pageSize, "limit": Self.pageSize + 1, "batchSize": Self.pageSize + 1, "maxTimeMS": 15000]
+            var command: [String: Any] = ["find": object.name, "filter": condition.isEmpty ? [:] : try jsonObject(condition), "skip": page * Self.pageSize, "limit": Self.pageSize + 1, "batchSize": Self.pageSize + 1, "maxTimeMS": 15000]
             command["sort"] = [sort ?? "_id": ascending ? 1 : -1]
             var response = try mongoCommand(command)
             var cursor = response["cursor"] as? [String: Any] ?? [:]
@@ -148,7 +148,9 @@ actor DatabaseEngine {
             let metadata = try columns(for: object)
             let ordering = sort.map { [quoteIdentifier($0) + (ascending ? " ASC" : " DESC")] } ?? metadata.filter(\.isPrimaryKey).map { quoteIdentifier($0.name) }
             let order = ordering.isEmpty ? "" : " ORDER BY " + ordering.joined(separator: ", ")
-            result = try sql("SELECT * FROM \(object.qualifiedName)\(order) LIMIT \(Self.pageSize + 1) OFFSET \(page * Self.pageSize)")
+            let filter = condition.isEmpty ? "" : " WHERE (" + condition + ")"
+            let query = "SELECT * FROM \(object.qualifiedName)\(filter)\(order) LIMIT \(Self.pageSize + 1) OFFSET \(page * Self.pageSize)"
+            result = condition.isEmpty ? try sql(query) : try run(query, readOnly: true)
             result.columns = result.columns.map { col in metadata.first { $0.name == col.name } ?? col }
         }
         result.hasMore = result.rows.count > Self.pageSize
@@ -157,15 +159,76 @@ actor DatabaseEngine {
         return result
     }
 
-    func run(_ query: String) throws -> QueryResult {
+    func postgreSQLStandardConformingStrings() throws -> Bool {
+        guard let postgres, let value = PQparameterStatus(postgres, "standard_conforming_strings") else {
+            throw DatabaseFailure(String(localized: "无法读取 PostgreSQL 字符串会话设置。"))
+        }
+        switch String(cString: value) {
+        case "on": return true
+        case "off": return false
+        default: throw DatabaseFailure(String(localized: "无法读取 PostgreSQL 字符串会话设置。"))
+        }
+    }
+
+    func run(_ query: String, readOnly: Bool = false) throws -> QueryResult {
+        if readOnly {
+            if let sqlite {
+                sqlite3_set_authorizer(sqlite, { _, action, first, second, _, _ in
+                    switch action {
+                    case SQLITE_SELECT, SQLITE_READ, SQLITE_RECURSIVE: return SQLITE_OK
+                    case SQLITE_FUNCTION:
+                        let name = second.map { String(cString: $0).lowercased() } ?? ""
+                        return ["load_extension", "writefile"].contains(name) ? SQLITE_DENY : SQLITE_OK
+                    case SQLITE_PRAGMA:
+                        let name = first.map { String(cString: $0).lowercased() } ?? ""
+                        return ["table_info", "table_xinfo", "index_list", "index_info", "index_xinfo", "foreign_key_list"].contains(name) ? SQLITE_OK : SQLITE_DENY
+                    default: return SQLITE_DENY
+                    }
+                }, nil)
+                defer { sqlite3_set_authorizer(sqlite, nil, nil) }
+                return try run(query)
+            }
+            if let original = postgres {
+                let standardStrings = try postgreSQLStandardConformingStrings()
+                let words = SQLScript.tokens(query, standardConformingStrings: standardStrings)
+                guard let first = words.first, ["SELECT", "WITH", "VALUES", "SHOW", "EXPLAIN"].contains(first),
+                      !words.contains("ANALYZE") else { throw DatabaseFailure(String(localized: "只读模式已阻止此命令。")) }
+                // A separate short-lived connection also isolates PostgreSQL's temporary
+                // object/sequence exceptions to READ ONLY. Never alter the user's session.
+                guard let options = PQconninfo(original) else { throw postgresError() }
+                defer { PQconninfoFree(options) }
+                var keys: [UnsafeMutablePointer<CChar>?] = [], values: [UnsafeMutablePointer<CChar>?] = []
+                var index = 0
+                while let keyword = options[index].keyword {
+                    if let value = options[index].val, value.pointee != 0 { keys.append(strdup(keyword)); values.append(strdup(value)) }
+                    index += 1
+                }
+                keys.append(nil); values.append(nil)
+                defer { keys.forEach { free($0) }; values.forEach { free($0) } }
+                let keyPointers = keys.map { $0.map { UnsafePointer($0) } }, valuePointers = values.map { $0.map { UnsafePointer($0) } }
+                let fresh = keyPointers.withUnsafeBufferPointer { keys in valuePointers.withUnsafeBufferPointer { values in PQconnectdbParams(keys.baseAddress, values.baseAddress, 0) } }
+                guard let fresh else { throw DatabaseFailure(String(localized: "无法连接 PostgreSQL。")) }
+                guard PQstatus(fresh) == CONNECTION_OK else { let message = String(cString: PQerrorMessage(fresh)); PQfinish(fresh); throw DatabaseFailure(message) }
+                let savedProfile = profile
+                postgres = fresh
+                defer {
+                    if postgres == fresh { _ = try? sql("ROLLBACK"); PQfinish(fresh) }
+                    postgres = original; profile = savedProfile
+                }
+                _ = try sql("SET standard_conforming_strings = " + (standardStrings ? "on" : "off"))
+                _ = try sql("BEGIN READ ONLY")
+                return try run(query)
+            }
+            if profile?.kind == .mongodb {
+                let command = try jsonObject(query)
+                guard Self.isReadOnlyMongo(command, name: try Self.mongoCommandName(query)) else { throw DatabaseFailure(String(localized: "只读模式已阻止此 MongoDB 命令。")) }
+            }
+        }
         let start = Date()
         var result: QueryResult
         if profile?.kind == .mongodb {
             let command = try jsonObject(query)
-            let pattern = try NSRegularExpression(pattern: "^\\s*\\{\\s*(\"(?:[^\"\\\\]|\\\\.)*\")\\s*:")
-            guard let match = pattern.firstMatch(in: query, range: NSRange(query.startIndex..., in: query)),
-                  let range = Range(match.range(at: 1), in: query),
-                  let name = try JSONSerialization.jsonObject(with: Data(query[range].utf8), options: .fragmentsAllowed) as? String else { throw DatabaseFailure(String(localized: "JSON 的第一个字段必须是 MongoDB 命令名。")) }
+            let name = try Self.mongoCommandName(query)
             let response = try mongoCommand(command, name: name)
             if response["cursor"] != nil { result = try documentsResult(response) }
             else { result = QueryResult(columns: [ColumnInfo(name: "result", type: "JSON")], rows: [DataRow(cells: [.text(try jsonText(response, pretty: true))])]) }
@@ -178,6 +241,71 @@ actor DatabaseEngine {
         } else { result = try sql(query) }
         result.elapsed = Date().timeIntervalSince(start)
         return result
+    }
+
+    static func mongoCommandName(_ query: String) throws -> String {
+        let regex = try NSRegularExpression(pattern: #"^\s*\{\s*("(?:[^"\\]|\\.)*")\s*:"#)
+        guard let match = regex.firstMatch(in: query, range: NSRange(query.startIndex..., in: query)),
+              let range = Range(match.range(at: 1), in: query),
+              let name = try JSONSerialization.jsonObject(with: Data(query[range].utf8), options: .fragmentsAllowed) as? String else { throw DatabaseFailure(String(localized: "JSON 的第一个字段必须是 MongoDB 命令名。")) }
+        return name
+    }
+    static func isReadOnlyMongo(_ command: [String: Any], name: String) -> Bool {
+        let reads: Set<String> = ["find", "aggregate", "count", "distinct", "listCollections", "listIndexes", "collStats", "dbStats", "ping", "hello"]
+        guard reads.contains(name), Set(command.keys).intersection(reads) == [name] else { return false }
+        func unsafe(_ value: Any) -> Bool {
+            if let object = value as? [String: Any] {
+                if object.keys.contains(where: { ["$out", "$merge", "$function", "$accumulator", "$where"].contains($0) }) { return true }
+                return object.values.contains(where: unsafe)
+            }
+            if let array = value as? [Any] { return array.contains(where: unsafe) }
+            return false
+        }
+        return !unsafe(command)
+    }
+
+    func estimate(_ query: String) -> QueryEstimate {
+        let words = SQLScript.tokens(query)
+        do {
+            if profile?.kind == .sqlite {
+                guard let first = words.first, ["SELECT", "WITH", "UPDATE", "DELETE", "INSERT", "REPLACE"].contains(first) else {
+                    return QueryEstimate(severity: .unknown, summary: String(localized: "此命令无法预估规模；执行前请核对。"))
+                }
+                let plan = try run("EXPLAIN QUERY PLAN " + query, readOnly: true)
+                let details = plan.rows.map { $0.cells.map(\.display).joined(separator: " · ") }.joined(separator: "\n")
+                let scans = details.components(separatedBy: "\n").filter { $0.contains("SCAN ") && !$0.contains("SCAN CONSTANT ROW") }.count
+                if scans == 0 && details.contains("SCAN CONSTANT ROW") && !query.contains("(") {
+                    return QueryEstimate(severity: .normal, summary: String(localized: "常量表达式，无表扫描。"), details: details, rows: 1)
+                }
+                return QueryEstimate(severity: scans > 1 ? .large : .unknown,
+                    summary: scans > 1 ? String(localized: "查询计划包含多处扫描，可能产生大量工作。") : scans > 0 ? String(localized: "查询计划包含扫描；SQLite 不提供可靠的预计行数。") : String(localized: "SQLite 计划不提供可靠行数；索引访问仍可能很大。"), details: details)
+            }
+            if profile?.kind == .postgresql {
+                guard let first = words.first, ["SELECT", "WITH", "UPDATE", "DELETE", "INSERT", "VALUES"].contains(first) else {
+                    return QueryEstimate(severity: .unknown, summary: String(localized: "此命令无法预估规模；执行前请核对。"))
+                }
+                let output = try run("EXPLAIN (FORMAT JSON) " + query, readOnly: true)
+                let text = output.rows.first?.cells.first?.display ?? ""
+                let plans = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [[String: Any]]
+                let plan = plans?.first?["Plan"] as? [String: Any] ?? [:]
+                func maximum(_ node: [String: Any], key: String) -> Double {
+                    max((node[key] as? NSNumber)?.doubleValue ?? 0, (node["Plans"] as? [[String: Any]] ?? []).map { maximum($0, key: key) }.max() ?? 0)
+                }
+                let rows = maximum(plan, key: "Plan Rows"), cost = maximum(plan, key: "Total Cost")
+                return QueryEstimate(severity: rows >= 1_000_000 || cost >= 1_000_000 ? .excessive : rows >= 100_000 || cost >= 100_000 ? .large : .normal,
+                    summary: String(localized: "计划估算最大节点行数：") + String(format: "%.0f", rows) + String(localized: "；成本：") + String(format: "%.0f", cost), details: text, rows: rows)
+            }
+            if profile?.kind == .mongodb {
+                let command = try jsonObject(query)
+                if let collection = command["find"] as? String {
+                    let explained = try mongoCommand(["explain": ["find": collection, "filter": command["filter"] ?? [:], "sort": command["sort"] ?? [:]], "verbosity": "queryPlanner"], name: "explain")
+                    let details = try jsonText(explained, pretty: true)
+                    return QueryEstimate(severity: details.contains("COLLSCAN") ? .large : .unknown,
+                        summary: String(localized: "MongoDB queryPlanner 未执行查询，不提供可靠工作量；请检查扫描计划。"), details: details)
+                }
+            }
+        } catch { return QueryEstimate(severity: .unknown, summary: String(localized: "无法取得执行前估算。"), details: error.localizedDescription) }
+        return QueryEstimate(severity: .unknown, summary: String(localized: "此入口没有可靠的无执行估算；请确认操作范围。"))
     }
 
     func update(_ object: DatabaseObject, columns: [ColumnInfo], original: DataRow, values: [CellValue], document: String?) throws {
@@ -289,7 +417,20 @@ actor DatabaseEngine {
         return DatabaseFailure(String(cString: error))
     }
 
-    private func sql(_ query: String, parameters: [CellValue] = []) throws -> QueryResult {
+    /// Metadata SELECTs page through the catalog without changing the user-query row cap.
+    func catalogSQL(_ query: String, parameters: [CellValue] = []) throws -> QueryResult {
+        var output = QueryResult()
+        var offset = 0
+        while true {
+            let page = try sql("\(query) LIMIT 1000 OFFSET \(offset)", parameters: parameters)
+            output.columns = page.columns
+            output.rows.append(contentsOf: page.rows)
+            if page.rows.count < 1000 { return output }
+            offset += page.rows.count
+        }
+    }
+
+    func sql(_ query: String, parameters: [CellValue] = []) throws -> QueryResult {
         guard !query.contains("\0") else { throw DatabaseFailure(String(localized: "SQL 语句不能包含 NUL 字符。")) }
         if let sqlite { return try sqliteQuery(sqlite, query: query, parameters: parameters) }
         if let postgres { return try postgresQuery(postgres, query: query, parameters: parameters) }
@@ -429,7 +570,7 @@ actor DatabaseEngine {
         return output
     }
 
-    private func mongoCommand(_ command: [String: Any], name: String? = nil, database: String? = nil) throws -> [String: Any] {
+    func mongoCommand(_ command: [String: Any], name: String? = nil, database: String? = nil) throws -> [String: Any] {
         guard let mongo, let profile else { throw DatabaseFailure(String(localized: "MongoDB 未连接。")) }
         // MongoDB requires the command name to be the FIRST BSON element.
         let known = ["ping", "listCollections", "getMore", "find", "update", "insert", "delete", "killCursors"]

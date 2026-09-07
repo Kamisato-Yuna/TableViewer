@@ -7,7 +7,7 @@ xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macos26.0 -m
   -profile-generate -profile-coverage-mapping \
   -import-objc-header Native/TableViewer-Bridging-Header.h -I .build/include/postgresql \
   -L .build/lib -Xlinker -rpath -Xlinker "$PWD/.build/lib" -lsqlite3 -lpq -lmongoc2 -lbson2 \
-  TableViewer/Models/DatabaseModels.swift TableViewer/Models/ReplicaSetModels.swift TableViewer/Services/DatabaseEngine.swift \
+  TableViewer/Models/DatabaseModels.swift TableViewer/Models/ReplicaSetModels.swift TableViewer/Models/SQLScript.swift TableViewer/Services/DatabaseEngine.swift \
   Tests/OrbStackE2E.swift .build/orbstack-e2e/MongoBridge.o -o .build/orbstack-e2e/OrbStackE2E
 python3 - <<'PY'
 import json, os, pathlib, subprocess

@@ -8,7 +8,7 @@ xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macos26.0 -m
   -L .build/lib -Xlinker -rpath -Xlinker "$PWD/.build/lib" \
   -lsqlite3 -lpq -lmongoc2 -lbson2 -framework JavaScriptCore \
   TableViewer/Models/DatabaseModels.swift TableViewer/Models/ReplicaSetModels.swift TableViewer/Models/AgentModels.swift \
-  TableViewer/Services/DatabaseEngine.swift TableViewer/Services/MongoShellRuntime.swift TableViewer/Services/ShellSession.swift \
+  TableViewer/Models/SQLScript.swift TableViewer/Services/DatabaseEngine.swift TableViewer/Services/MongoShellRuntime.swift TableViewer/Services/ShellSession.swift \
   TableViewer/Services/OpenAICompatibleClient.swift Tests/FeatureIntegration.swift .build/tests/MongoBridge.o -o .build/tests/FeatureIntegration
 export TABLEVIEWER_SHELL_LIBRARY="$PWD/TableViewer/Resources/MongoShell.js"
 .build/tests/FeatureIntegration

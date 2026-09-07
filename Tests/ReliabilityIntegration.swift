@@ -54,7 +54,9 @@ import AppKit
         }
         try check(rendered == ["1", "2", "3"], "AppKit grid preserves duplicate and reserved column names")
         await engine.disconnect()
-        let store = WorkspaceStore()
+        let scriptsDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("reliability-scripts-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: scriptsDirectory) }
+        let store = WorkspaceStore(scripts: ScriptLibrary(directory: scriptsDirectory))
         await store.connect(profile)
         store.query = "SELECT 42"; await store.runQuery()
         try check(store.queryHasRun, "workspace query succeeds before failure test")
@@ -63,6 +65,7 @@ import AppKit
         do { _ = try await store.engine.run("SELECT 1"); throw DatabaseFailure("FAIL: connection survived failure") }
         catch { try check(error.localizedDescription.contains("未连接"), "failed connection releases database handle") }
         await store.connect(profile)
+        await store.chooseObject(DatabaseObject(name: "returning_rows"))
         store.tab = .data
         store.documentDraft = ""
         store.result = QueryResult(columns: [ColumnInfo(name: "id", isPrimaryKey: true), ColumnInfo(name: "name")], rows: [DataRow(cells: [.text("1"), .text("original")])])
@@ -82,7 +85,10 @@ import AppKit
     }
 
     @MainActor static func inspectorBindings() throws {
-        let store = WorkspaceStore()
+        let scriptsDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("reliability-scripts-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: scriptsDirectory) }
+        let store = WorkspaceStore(scripts: ScriptLibrary(directory: scriptsDirectory))
+        store.tab = .data
         store.active = ConnectionProfile(name: "Binding regression")
         store.selectedObject = DatabaseObject(name: "wide")
         let columns = [ColumnInfo(name: "id", isPrimaryKey: true), ColumnInfo(name: "name"), ColumnInfo(name: "detail")]

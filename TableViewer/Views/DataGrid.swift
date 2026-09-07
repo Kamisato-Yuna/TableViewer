@@ -11,6 +11,12 @@ struct DataGrid: NSViewRepresentable {
     var sort: (String) -> Void = { _ in }
     var doubleClick: () -> Void = {}
 
+    // Nil preserves the single-selection API for existing query result consumers.
+    var selectedIDs: Set<UUID>? = nil
+    var selectionChanged: ((Set<UUID>) -> Void)? = nil
+    // The store must check read-only state, primary keys and BLOBs before editing.
+    var editCell: ((UUID, Int) -> Void)? = nil
+
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
@@ -22,10 +28,10 @@ struct DataGrid: NSViewRepresentable {
         table.usesAlternatingRowBackgroundColors = true
         table.style = .plain; table.backgroundColor = .controlBackgroundColor
         table.columnAutoresizingStyle = .noColumnAutoresizing
-        table.allowsMultipleSelection = false; table.allowsEmptySelection = true
+        table.allowsMultipleSelection = true; table.allowsEmptySelection = true
         table.allowsColumnReordering = true; table.allowsColumnResizing = true
         table.selectionHighlightStyle = .regular
-        table.target = context.coordinator; table.doubleAction = #selector(Coordinator.openInspector)
+        table.target = context.coordinator; table.doubleAction = #selector(Coordinator.openInspector(_:))
         table.setAccessibilityLabel(String(localized: "数据库记录表格"))
         scroll.documentView = table
         return scroll
@@ -56,9 +62,14 @@ struct DataGrid: NSViewRepresentable {
                 table.addTableColumn(column)
             }
         }
-        if changed || old.rows.map(\.id) != rows.map(\.id) { table.reloadData() }
-        if let selectedID, let index = rows.firstIndex(where: { $0.id == selectedID }) { table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false) }
-        else { table.deselectAll(nil) }
+        if changed || old.rows.map(\.id) != rows.map(\.id) || old.rows.map(\.cells) != rows.map(\.cells) { table.reloadData() }
+        table.allowsMultipleSelection = selectedIDs != nil || selectionChanged != nil
+        let ids = selectedIDs ?? Set(selectedID.map { [$0] } ?? [])
+        let indexes = IndexSet(rows.indices.filter { ids.contains(rows[$0].id) })
+        // Re-selecting the same indexes resets AppKit's Shift-selection anchor.
+        if table.selectedRowIndexes != indexes {
+            table.selectRowIndexes(indexes, byExtendingSelection: false)
+        }
     }
 
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
@@ -100,13 +111,28 @@ struct DataGrid: NSViewRepresentable {
         }
         func tableViewSelectionDidChange(_ notification: Notification) {
             guard !updating, let table = notification.object as? NSTableView else { return }
-            let row = table.selectedRow
-            parent.selection(row >= 0 && row < parent.rows.count ? parent.rows[row].id : nil)
+            let ids = Set(table.selectedRowIndexes.compactMap { index in
+                parent.rows.indices.contains(index) ? parent.rows[index].id : nil
+            })
+            if let selectionChanged = parent.selectionChanged { selectionChanged(ids) }
+            else {
+                let row = table.selectedRow
+                parent.selection(parent.rows.indices.contains(row) ? parent.rows[row].id : nil)
+            }
         }
         func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
             guard !updating, let key = tableView.sortDescriptors.first?.key else { return }
             parent.sort(key)
         }
-        @objc func openInspector() { parent.doubleClick() }
+        @objc func openInspector(_ sender: NSTableView) {
+            guard parent.rows.indices.contains(sender.clickedRow),
+                  sender.tableColumns.indices.contains(sender.clickedColumn) else { return }
+            let identifier = sender.tableColumns[sender.clickedColumn].identifier.rawValue
+            guard identifier.hasPrefix("column:"), let index = Int(identifier.dropFirst(7)),
+                  parent.columns.indices.contains(index),
+                  parent.rows[sender.clickedRow].cells.indices.contains(index) else { return }
+            if let editCell = parent.editCell { editCell(parent.rows[sender.clickedRow].id, index) }
+            else { parent.doubleClick() }
+        }
     }
 }

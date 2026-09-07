@@ -31,3 +31,6 @@ Design/Previews/
 # Historical machine-specific acceptance notes stay local.
 Tests/*.md
 Design/图标说明.md
+
+# Private task evidence and feedback
+output/
