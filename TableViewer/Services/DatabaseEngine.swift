@@ -65,11 +65,11 @@ actor DatabaseEngine {
         guard let profile else { throw DatabaseFailure(String(localized: "请先连接数据库。")) }
         switch profile.kind {
         case .sqlite:
-            return try sql("SELECT name, type FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name").rows.map {
+            return try catalogSQL("SELECT name, type FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name").rows.map {
                 DatabaseObject(name: $0.cells[0].display, isView: $0.cells[1].display == "view")
             }
         case .postgresql:
-            return try sql("SELECT table_name, table_schema, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema, table_name").rows.map {
+            return try catalogSQL("SELECT table_name, table_schema, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema, table_name").rows.map {
                 DatabaseObject(name: $0.cells[0].display, schema: $0.cells[1].display, isView: $0.cells[2].display == "VIEW")
             }
         case .mongodb:
@@ -105,7 +105,7 @@ actor DatabaseEngine {
         guard let profile else { throw DatabaseFailure(String(localized: "未连接。")) }
         switch profile.kind {
         case .sqlite:
-            return try sql("PRAGMA table_xinfo(\(quoteIdentifier(object.name)))").rows.map { row in
+            return try catalogSQL("SELECT * FROM pragma_table_xinfo(?) ORDER BY cid", parameters: [.text(object.name)]).rows.map { row in
                 ColumnInfo(name: row.cells[1].display, type: row.cells[2].display, isPrimaryKey: (Int(row.cells[5].display) ?? 0) > 0, isEditable: row.cells.count < 7 || row.cells[6].display == "0", defaultValue: row.cells[4].string)
             }
         case .postgresql:
@@ -117,7 +117,7 @@ actor DatabaseEngine {
               c.is_generated, c.column_default, c.is_identity
             FROM information_schema.columns c WHERE c.table_schema=$1 AND c.table_name=$2 ORDER BY c.ordinal_position
             """
-            return try sql(query, parameters: [.text(object.schema), .text(object.name)]).rows.map { row in
+            return try catalogSQL(query, parameters: [.text(object.schema), .text(object.name)]).rows.map { row in
                 ColumnInfo(name: row.cells[0].display, type: row.cells[1].display, isPrimaryKey: row.cells[2].display == "true", isEditable: row.cells[3].display == "NEVER" && row.cells[5].display != "YES", defaultValue: row.cells[4].string)
             }
         case .mongodb: return []
@@ -159,6 +159,17 @@ actor DatabaseEngine {
         return result
     }
 
+    func postgreSQLStandardConformingStrings() throws -> Bool {
+        guard let postgres, let value = PQparameterStatus(postgres, "standard_conforming_strings") else {
+            throw DatabaseFailure(String(localized: "无法读取 PostgreSQL 字符串会话设置。"))
+        }
+        switch String(cString: value) {
+        case "on": return true
+        case "off": return false
+        default: throw DatabaseFailure(String(localized: "无法读取 PostgreSQL 字符串会话设置。"))
+        }
+    }
+
     func run(_ query: String, readOnly: Bool = false) throws -> QueryResult {
         if readOnly {
             if let sqlite {
@@ -177,20 +188,40 @@ actor DatabaseEngine {
                 defer { sqlite3_set_authorizer(sqlite, nil, nil) }
                 return try run(query)
             }
-            if let postgres {
-                // Native READ ONLY transaction prevents writes even through CTEs/functions.
-                // Never commit/rollback a transaction owned by the user.
-                guard PQtransactionStatus(postgres) == PQTRANS_IDLE else { throw DatabaseFailure("只读查询需要空闲连接；请先结束已有事务。") }
-                let words = SQLScript.tokens(query)
+            if let original = postgres {
+                let standardStrings = try postgreSQLStandardConformingStrings()
+                let words = SQLScript.tokens(query, standardConformingStrings: standardStrings)
                 guard let first = words.first, ["SELECT", "WITH", "VALUES", "SHOW", "EXPLAIN"].contains(first),
-                      !words.contains("ANALYZE") else { throw DatabaseFailure("只读模式已阻止此命令。") }
+                      !words.contains("ANALYZE") else { throw DatabaseFailure(String(localized: "只读模式已阻止此命令。")) }
+                // A separate short-lived connection also isolates PostgreSQL's temporary
+                // object/sequence exceptions to READ ONLY. Never alter the user's session.
+                guard let options = PQconninfo(original) else { throw postgresError() }
+                defer { PQconninfoFree(options) }
+                var keys: [UnsafeMutablePointer<CChar>?] = [], values: [UnsafeMutablePointer<CChar>?] = []
+                var index = 0
+                while let keyword = options[index].keyword {
+                    if let value = options[index].val, value.pointee != 0 { keys.append(strdup(keyword)); values.append(strdup(value)) }
+                    index += 1
+                }
+                keys.append(nil); values.append(nil)
+                defer { keys.forEach { free($0) }; values.forEach { free($0) } }
+                let keyPointers = keys.map { $0.map { UnsafePointer($0) } }, valuePointers = values.map { $0.map { UnsafePointer($0) } }
+                let fresh = keyPointers.withUnsafeBufferPointer { keys in valuePointers.withUnsafeBufferPointer { values in PQconnectdbParams(keys.baseAddress, values.baseAddress, 0) } }
+                guard let fresh else { throw DatabaseFailure(String(localized: "无法连接 PostgreSQL。")) }
+                guard PQstatus(fresh) == CONNECTION_OK else { let message = String(cString: PQerrorMessage(fresh)); PQfinish(fresh); throw DatabaseFailure(message) }
+                let savedProfile = profile
+                postgres = fresh
+                defer {
+                    if postgres == fresh { _ = try? sql("ROLLBACK"); PQfinish(fresh) }
+                    postgres = original; profile = savedProfile
+                }
+                _ = try sql("SET standard_conforming_strings = " + (standardStrings ? "on" : "off"))
                 _ = try sql("BEGIN READ ONLY")
-                defer { _ = try? sql("ROLLBACK") }
                 return try run(query)
             }
             if profile?.kind == .mongodb {
                 let command = try jsonObject(query)
-                guard Self.isReadOnlyMongo(command, name: try Self.mongoCommandName(query)) else { throw DatabaseFailure("只读模式已阻止此 MongoDB 命令。") }
+                guard Self.isReadOnlyMongo(command, name: try Self.mongoCommandName(query)) else { throw DatabaseFailure(String(localized: "只读模式已阻止此 MongoDB 命令。")) }
             }
         }
         let start = Date()
@@ -216,7 +247,7 @@ actor DatabaseEngine {
         let regex = try NSRegularExpression(pattern: #"^\s*\{\s*("(?:[^"\\]|\\.)*")\s*:"#)
         guard let match = regex.firstMatch(in: query, range: NSRange(query.startIndex..., in: query)),
               let range = Range(match.range(at: 1), in: query),
-              let name = try JSONSerialization.jsonObject(with: Data(query[range].utf8), options: .fragmentsAllowed) as? String else { throw DatabaseFailure("JSON 的第一个字段必须是 MongoDB 命令名。") }
+              let name = try JSONSerialization.jsonObject(with: Data(query[range].utf8), options: .fragmentsAllowed) as? String else { throw DatabaseFailure(String(localized: "JSON 的第一个字段必须是 MongoDB 命令名。")) }
         return name
     }
     static func isReadOnlyMongo(_ command: [String: Any], name: String) -> Bool {
@@ -242,8 +273,11 @@ actor DatabaseEngine {
                 }
                 let plan = try run("EXPLAIN QUERY PLAN " + query, readOnly: true)
                 let details = plan.rows.map { $0.cells.map(\.display).joined(separator: " · ") }.joined(separator: "\n")
-                let scans = details.components(separatedBy: "\n").filter { $0.contains("SCAN ") }.count
-                return QueryEstimate(severity: scans > 1 ? .excessive : scans > 0 ? .large : .unknown,
+                let scans = details.components(separatedBy: "\n").filter { $0.contains("SCAN ") && !$0.contains("SCAN CONSTANT ROW") }.count
+                if scans == 0 && details.contains("SCAN CONSTANT ROW") && !query.contains("(") {
+                    return QueryEstimate(severity: .normal, summary: String(localized: "常量表达式，无表扫描。"), details: details, rows: 1)
+                }
+                return QueryEstimate(severity: scans > 1 ? .large : .unknown,
                     summary: scans > 1 ? String(localized: "查询计划包含多处扫描，可能产生大量工作。") : scans > 0 ? String(localized: "查询计划包含扫描；SQLite 不提供可靠的预计行数。") : String(localized: "SQLite 计划不提供可靠行数；索引访问仍可能很大。"), details: details)
             }
             if profile?.kind == .postgresql {
@@ -381,6 +415,19 @@ actor DatabaseEngine {
         guard let error else { return DatabaseFailure(String(localized: "MongoDB 操作失败。")) }
         defer { free(error) }
         return DatabaseFailure(String(cString: error))
+    }
+
+    /// Metadata SELECTs page through the catalog without changing the user-query row cap.
+    func catalogSQL(_ query: String, parameters: [CellValue] = []) throws -> QueryResult {
+        var output = QueryResult()
+        var offset = 0
+        while true {
+            let page = try sql("\(query) LIMIT 1000 OFFSET \(offset)", parameters: parameters)
+            output.columns = page.columns
+            output.rows.append(contentsOf: page.rows)
+            if page.rows.count < 1000 { return output }
+            offset += page.rows.count
+        }
     }
 
     func sql(_ query: String, parameters: [CellValue] = []) throws -> QueryResult {

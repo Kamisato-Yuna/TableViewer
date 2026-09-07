@@ -7,7 +7,7 @@ xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macos26.0 -m
   -import-objc-header Native/TableViewer-Bridging-Header.h -I .build/include/postgresql \
   -L .build/lib -Xlinker -rpath -Xlinker "$PWD/.build/lib" -lsqlite3 -lpq -lmongoc2 -lbson2 -framework JavaScriptCore \
   TableViewer/Models/DatabaseModels.swift TableViewer/Models/ReplicaSetModels.swift \
-  TableViewer/Services/DatabaseEngine.swift TableViewer/Services/ShellSession.swift TableViewer/Services/MongoShellRuntime.swift \
+  TableViewer/Models/SQLScript.swift TableViewer/Services/DatabaseEngine.swift TableViewer/Services/ShellSession.swift TableViewer/Services/MongoShellRuntime.swift \
   Tests/ReplicaE2E.swift .build/replica-e2e/MongoBridge.o -o .build/replica-e2e/ReplicaE2E
 export TABLEVIEWER_REPLICA_OUTPUT="$PWD/.build/replica-e2e"
 export TABLEVIEWER_SHELL_LIBRARY="$PWD/TableViewer/Resources/MongoShell.js"

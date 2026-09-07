@@ -301,7 +301,6 @@ private struct AgentCommandPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(verbatim: firstLine).font(.system(.caption, design: .monospaced)).lineLimit(1).textSelection(.enabled)
-                .accessibilityLabel("执行命令首行：" + firstLine)
             if command != firstLine || command.count > 100 {
                 if lengthy {
                     Button("在浮窗查看完整命令", systemImage: "arrow.up.left.and.arrow.down.right") { showFullCommand = true }

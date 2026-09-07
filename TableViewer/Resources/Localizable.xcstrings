@@ -1,6 +1,40 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "无法读取 PostgreSQL 字符串会话设置。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unable to read the PostgreSQL session string setting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 PostgreSQL 字符串会话设置。"
+          }
+        }
+      }
+    },
+    "后续语句规模未知；先前语句可能改变对象或会话设置，将按执行时状态逐条解析。": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The scope of later statements is unknown. Earlier statements may change objects or session settings; each statement will be parsed using the state at execution time."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后续语句规模未知；先前语句可能改变对象或会话设置，将按执行时状态逐条解析。"
+          }
+        }
+      }
+    },
     "\n…结果已截断。": {
       "extractionState": "manual",
       "localizations": {

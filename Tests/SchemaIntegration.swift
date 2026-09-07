@@ -32,6 +32,15 @@ import Foundation
         try require(implicit.relationships.first?.targetColumns == ["a", "b"], "implicit FK resolves actual primary key fields")
         let relationships = try await engine.relationships(for: engine.objects())
         try require(relationships.count == 2, "catalog relationship enumeration")
+        for index in 0..<1005 { _ = try await engine.run("CREATE VIEW catalog_\(index) AS SELECT 1 AS value") }
+        let largeCatalog = try await engine.objects()
+        try require(largeCatalog.filter { $0.name.hasPrefix("catalog_") }.count == 1005, "catalog reads beyond the user query cap")
+        _ = try await engine.run("CREATE TABLE wide_catalog (" + (0..<1005).map { "c\($0) TEXT" }.joined(separator: ",") + ")")
+        let wide = try await engine.schemaMetadata(for: DatabaseObject(name: "wide_catalog"))
+        let columns = try await engine.columns(for: DatabaseObject(name: "wide_catalog"))
+        try require(wide.fields.count == 1005 && columns.count == 1005, "all fields of a wide table are retained")
+        let capped = try await engine.run("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1005) SELECT x FROM n")
+        try require(capped.rows.count == 1000 && capped.hasMore, "user query row protection remains enabled")
         await engine.disconnect()
         print("SQLite schema integration passed; PostgreSQL/MongoDB not run by this test.")
     }

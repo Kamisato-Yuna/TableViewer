@@ -30,7 +30,7 @@ struct SavedScript: Codable, Identifiable {
     }
     func create(name: String, connectionID: UUID, text: String = "") throws -> UUID {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty && trimmed.count <= 100 else { throw DatabaseFailure("脚本名称须为 1–100 个字符。") }
+        guard !trimmed.isEmpty && trimmed.count <= 100 else { throw DatabaseFailure(String(localized: "脚本名称须为 1–100 个字符。")) }
         let script = SavedScript(connectionID: connectionID, name: trimmed)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try text.write(to: directory.appendingPathComponent(script.filename), atomically: true, encoding: .utf8)
@@ -45,18 +45,18 @@ struct SavedScript: Codable, Identifiable {
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
     func open(_ id: UUID) throws -> String {
-        guard let index = scripts.firstIndex(where: { $0.id == id }) else { throw DatabaseFailure("脚本不存在。") }
+        guard let index = scripts.firstIndex(where: { $0.id == id }) else { throw DatabaseFailure(String(localized: "脚本不存在。")) }
         let text = try String(contentsOf: directory.appendingPathComponent(scripts[index].filename), encoding: .utf8)
         scripts[index].lastUsed = Date(); scripts[index].isOpen = true; try persist(); return text
     }
     func rename(_ id: UUID, name: String) throws {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty && name.count <= 100, let index = scripts.firstIndex(where: { $0.id == id }) else { throw DatabaseFailure("脚本名称须为 1–100 个字符。") }
+        guard !name.isEmpty && name.count <= 100, let index = scripts.firstIndex(where: { $0.id == id }) else { throw DatabaseFailure(String(localized: "脚本名称须为 1–100 个字符。")) }
         scripts[index].name = name; try persist()
     }
     func close(_ id: UUID) throws {
         guard let index = scripts.firstIndex(where: { $0.id == id }) else { return }
-        scripts[index].isOpen = false; try persist()
+        scripts[index].lastUsed = Date(); scripts[index].isOpen = false; try persist()
     }
     func unused(days: Int, now: Date = Date()) -> [SavedScript] {
         scripts.filter { !$0.isOpen && $0.lastUsed < now.addingTimeInterval(-Double(max(1, days)) * 86400) }

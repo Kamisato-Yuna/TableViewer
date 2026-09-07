@@ -98,7 +98,7 @@ struct AgentCopyButton: View {
     var body: some View {
         Button(copied ? String(localized: "已复制") : label, systemImage: copied ? "checkmark" : "doc.on.doc") {
             NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string); copied = true
-        }.buttonStyle(.borderless).accessibilityLabel(copied ? String(localized: "已复制") : label).font(.system(size: 11)).onChange(of: text) { copied = false }
+        }.buttonStyle(.borderless).font(.system(size: 11)).onChange(of: text) { copied = false }
     }
 }
 

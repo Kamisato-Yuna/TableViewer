@@ -7,6 +7,6 @@ xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macos26.0 -m
   -import-objc-header Native/TableViewer-Bridging-Header.h -I .build/include/postgresql \
   -L .build/lib -Xlinker -rpath -Xlinker "$PWD/.build/lib" \
   -lsqlite3 -lpq -lmongoc2 -lbson2 -framework JavaScriptCore \
-  TableViewer/Models/*.swift TableViewer/Services/{AgentToolExecutor,ConnectionVault,DatabaseEngine,MongoShellRuntime,OpenAICompatibleClient,ShellSession}.swift TableViewer/Views/DataGrid.swift \
+  TableViewer/Models/*.swift TableViewer/Services/{AgentToolExecutor,ConnectionVault,DatabaseEngine,DatabaseSchema,ResultExporter,MongoShellRuntime,OpenAICompatibleClient,ShellSession}.swift TableViewer/Views/DataGrid.swift \
   Tests/ReliabilityIntegration.swift .build/reliability/MongoBridge.o -o .build/reliability/ReliabilityIntegration
 .build/reliability/ReliabilityIntegration

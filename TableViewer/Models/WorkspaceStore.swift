@@ -3,9 +3,11 @@ import Observation
 import UniformTypeIdentifiers
 
 enum WorkspaceTab: String, CaseIterable {
-    case data = "数据", structure = "结构", query = "查询", replica = "副本集", shell = "终端", agent = "Agent"
+    case overview = "概览", relationships = "关系", data = "数据", structure = "结构", query = "查询", replica = "副本集", shell = "终端", agent = "Agent"
     var title: String {
         switch self {
+        case .overview: String(localized: "对象概览")
+        case .relationships: String(localized: "实体关系")
         case .data: String(localized: "数据")
         case .structure: String(localized: "结构")
         case .query: String(localized: "查询")
@@ -15,7 +17,7 @@ enum WorkspaceTab: String, CaseIterable {
         }
     }
     static let basic: [Self] = [.data, .structure, .query]
-    var symbol: String { switch self { case .data: "tablecells"; case .structure: "square.stack.3d.up"; case .query: "chevron.left.forwardslash.chevron.right"; case .replica: "point.3.connected.trianglepath.dotted"; case .shell: "terminal"; case .agent: "sparkles" } }
+    var symbol: String { switch self { case .overview: "square.grid.2x2"; case .relationships: "point.3.connected.trianglepath.dotted"; case .data: "tablecells"; case .structure: "square.stack.3d.up"; case .query: "chevron.left.forwardslash.chevron.right"; case .replica: "point.3.connected.trianglepath.dotted"; case .shell: "terminal"; case .agent: "sparkles" } }
 }
 
 struct ShellEntry: Identifiable {
@@ -32,15 +34,22 @@ struct ShellEntry: Identifiable {
     var active: ConnectionProfile?
     var objects: [DatabaseObject] = []
     var selectedObject: DatabaseObject?
+    var schemaMetadata: SchemaMetadata?
+    var relationships: [TableRelationship] = []
+    var structureLoading = false
+    var relationshipLoading = false
+    var structureError: String?
+    var relationshipError: String?
     var result = QueryResult()
     var selectedRowID: UUID?
     var draft: [CellValue] = []
     var documentDraft = ""
     var objectSearch = ""
     var rowSearch = ""
-    var tab = WorkspaceTab.data
-    var query = "" { didSet { if let selectedScriptID { do { try scripts.save(selectedScriptID, text: query) } catch { report(error) } } } }
-    let scripts = ScriptLibrary()
+    var tab = WorkspaceTab.overview
+    var query = "" { didSet { if let selectedScriptID { do { try scripts.save(selectedScriptID, text: query); scriptSaveError = nil } catch { scriptSaveError = error.localizedDescription; report(error) } } } }
+    let scripts: ScriptLibrary
+    @ObservationIgnored var queryEditorViews: [UUID: NSScrollView] = [:]
     var selectedScriptID: UUID?
     var querySelection = NSRange(location: 0, length: 0)
     var statementResults: [StatementResult] = []
@@ -51,6 +60,8 @@ struct ShellEntry: Identifiable {
     var renamingScriptID: UUID?
     var scriptName = ""
     var readOnly = false
+    var browseEstimate: QueryEstimate?
+    var scriptSaveError: String?
     var selectedRowIDs = Set<UUID>()
     var readOnlyNotice = false
     var filterIsCondition = false
@@ -90,20 +101,22 @@ struct ShellEntry: Identifiable {
     let agentLibrary: AgentLibrary
     var showAgentHistory = false
     typealias AgentExecution = @Sendable (UUID, AgentAction, ConnectionProfile, DatabaseObject?) async throws -> String
-    private let agentExecution: AgentExecution
+    private let agentExecution: @Sendable (UUID, AgentAction, ConnectionProfile, DatabaseObject?, Bool) async throws -> String
     private let readCredential: (UUID) throws -> String
-    init(agentLibrary: AgentLibrary? = nil, agentExecution: AgentExecution? = nil, readCredential: @escaping (UUID) throws -> String = { try ConnectionVault.read(id: $0) }) {
+    init(agentLibrary: AgentLibrary? = nil, agentExecution: AgentExecution? = nil, readCredential: @escaping (UUID) throws -> String = { try ConnectionVault.read(id: $0) }, scripts: ScriptLibrary? = nil) {
+        self.scripts = scripts ?? ScriptLibrary()
         self.readCredential = readCredential
         self.agentLibrary = agentLibrary ?? AgentLibrary()
         let executor = AgentToolExecutor()
-        self.agentExecution = agentExecution ?? { id, action, profile, object in
-            try await executor.execute(sessionID: id, action: action, profile: profile, object: object)
-        }
+        if let agentExecution { self.agentExecution = { id, action, profile, object, _ in try await agentExecution(id, action, profile, object) } }
+        else { self.agentExecution = { id, action, profile, object, readOnly in try await executor.execute(sessionID: id, action: action, profile: profile, object: object, readOnly: readOnly) } }
+        bindAutomaticActions()
     }
     var agent: AgentSession? { agentLibrary.selected }
     func newAgentSession(for profile: ConnectionProfile? = nil) {
         guard let profile = profile ?? active else { showAgentHistory = true; return }
         agentLibrary.create(context: AgentContext(connectionID: profile.id, connectionName: profile.name, kind: profile.kind))
+        bindAutomaticActions()
         tab = .agent
     }
     func openAgentHistory() { if allowNavigation() { tab = .agent; showAgentHistory = true } }
@@ -127,6 +140,7 @@ struct ShellEntry: Identifiable {
         return active?.kind == .mongodb ? documentDraft != row.document : draft != row.cells
     }
     var terminationWarning: String? {
+        if let scriptSaveError { return scriptSaveError }
         if busy { return String(localized: "数据库操作仍在进行。退出不会撤销已完成的写入；未提交的 SQL 事务会在连接关闭后回滚。") }
         if hasChanges { return String(localized: "当前记录有未保存的修改，退出会丢失这些修改。请取消退出后保存或撤销。") }
         if agentLibrary.workingCount > 0 { return String(localized: "Agent 仍在生成或执行。历史会保存在本机；退出后中断的操作不会自动重放，数据库执行结果可能需要核实。") }
@@ -183,13 +197,15 @@ struct ShellEntry: Identifiable {
         }
         await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = profile.database
         replicaSnapshot = nil; replicaError = nil
+        queryEditorViews.removeAll()
         selectedScriptID = nil; queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""
         do {
             let loaded = try await engine.connect(profile, secret: credential)
             active = profile; objects = loaded
+            schemaMetadata = nil; relationships = []; structureError = nil; relationshipError = nil; browseEstimate = nil
             if agentLibrary.selected == nil { newAgentSession(for: profile) }
             selectedObject = nil; result = QueryResult(); selectedRowID = nil
-            page = 0; sortColumn = nil; rowSearch = ""; objectSearch = ""; tab = .data
+            page = 0; sortColumn = nil; rowSearch = ""; objectSearch = ""; tab = .overview
             queryResult = QueryResult(); queryHasRun = false; queryHistory = []
             query = profile.kind == .mongodb ? "{\n  \"find\": \"\(loaded.first?.name ?? "collection")\",\n  \"filter\": {},\n  \"limit\": 100\n}" : "SELECT * FROM \(loaded.first?.qualifiedName ?? "table_name") LIMIT 100;"
             if let script = scripts.scripts.first(where: { $0.connectionID == profile.id && $0.isOpen }) {
@@ -207,7 +223,7 @@ struct ShellEntry: Identifiable {
     func chooseObject(_ object: DatabaseObject) async {
         guard allowNavigation() else { return }
         if selectedObject == object { tab = .data; return }
-        selectedObject = object; appliedCondition = ""; condition = ""; page = 0; sortColumn = nil; rowSearch = ""; tab = .data
+        selectedObject = object; schemaMetadata = nil; structureError = nil; appliedCondition = ""; condition = ""; page = 0; sortColumn = nil; rowSearch = ""; tab = .data
         await refresh()
     }
 
@@ -220,6 +236,7 @@ struct ShellEntry: Identifiable {
             if let selectedObject {
                 let estimateSQL = active?.kind == .mongodb ? "{\"find\": " + (try jsonText(selectedObject.name)) + ", \"filter\": " + (appliedCondition.isEmpty ? "{}" : appliedCondition) + "}" : "SELECT * FROM " + selectedObject.qualifiedName + (appliedCondition.isEmpty ? "" : " WHERE (" + appliedCondition + ")")
                 let estimate = await engine.estimate(estimateSQL)
+                browseEstimate = estimate
                 if estimate.severity == .large || estimate.severity == .excessive {
                     guard await confirmEstimate(estimate) else { status = String(localized: "已取消"); return false }
                 }
@@ -336,7 +353,7 @@ struct ShellEntry: Identifiable {
         alert.informativeText = estimate.summary + "\n" + String(estimate.details.prefix(900))
         alert.alertStyle = estimate.severity == .excessive ? .critical : .warning
         alert.addButton(withTitle: String(localized: "取消")); alert.addButton(withTitle: String(localized: "继续执行"))
-        guard let window = NSApp.keyWindow else { return false }
+        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.identifier?.rawValue == "workspace" }) ?? NSApp.windows.first(where: { $0.isVisible }) else { return false }
         return await withCheckedContinuation { continuation in
             alert.beginSheetModal(for: window) { continuation.resume(returning: $0 == .alertSecondButtonReturn) }
         }
@@ -373,15 +390,39 @@ struct ShellEntry: Identifiable {
         busy = true; status = String(localized: "执行查询…")
         defer { busy = false }
         do {
-            let statements = try SQLScript.statements(sql, kind: active.kind)
-            if !approved {
-                estimates = []
-                for statement in statements { estimates.append(await engine.estimate(statement)) }
-                if estimates.contains(where: { $0.severity != .normal }) { pendingQuery = sql; showQueryApproval = true; return }
+            let isPostgres = active.kind == .postgresql
+            var statements: [String] = []
+            var remaining = sql
+            if isPostgres {
+                let standardStrings = try await engine.postgreSQLStandardConformingStrings()
+                guard let first = try SQLScript.nextPostgreSQLStatement(sql, standardConformingStrings: standardStrings) else { return }
+                statements = [first.statement]
+                if !approved {
+                    estimates = [await engine.estimate(first.statement)]
+                    if !first.remainder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        estimates.append(QueryEstimate(severity: .unknown, summary: String(localized: "后续语句规模未知；先前语句可能改变对象或会话设置，将按执行时状态逐条解析。")))
+                    }
+                }
+            } else {
+                statements = try SQLScript.statements(sql, kind: active.kind)
+                if !approved {
+                    estimates = []
+                    for statement in statements { estimates.append(await engine.estimate(statement)) }
+                }
             }
+            if !approved && estimates.contains(where: { $0.severity != .normal }) { pendingQuery = sql; showQueryApproval = true; return }
             pendingQuery = nil; queryFailure = nil; statementResults = []; selectedResultIndex = 0
-            for statement in statements {
+            var index = 0
+            while isPostgres || index < statements.count {
+                var statement = remaining
                 do {
+                    if isPostgres {
+                        let standardStrings = try await engine.postgreSQLStandardConformingStrings()
+                        guard let next = try SQLScript.nextPostgreSQLStatement(remaining, standardConformingStrings: standardStrings) else { break }
+                        statement = next.statement; remaining = next.remainder
+                    } else {
+                        statement = statements[index]; index += 1
+                    }
                     let result = try await engine.run(statement, readOnly: readOnly)
                     statementResults.append(StatementResult(statement: statement, result: result))
                 } catch {
@@ -425,7 +466,7 @@ struct ShellEntry: Identifiable {
             try LocalWorkspace.saveProfiles(updated); profiles = updated
             if active?.id == profile.id {
                 await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = ""
-                await engine.disconnect(); active = nil; objects = []; result = QueryResult(); selectedObject = nil; selectedRowID = nil
+                await engine.disconnect(); queryEditorViews.removeAll(); active = nil; objects = []; result = QueryResult(); selectedObject = nil; selectedRowID = nil
                 queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""; draft = []; documentDraft = ""
                 replicaSnapshot = nil; replicaError = nil; status = String(localized: "连接已移除")
             }
@@ -474,15 +515,57 @@ struct ShellEntry: Identifiable {
     }
     func resetShell() async { guard !shellRunning else { return }; await shell.stop(); shellEntries = []; shellDatabase = active?.database ?? "" }
 
-    func executeAgentAction(_ id: String, in session: AgentSession) async {
+    func bindAutomaticActions() {
+        for session in agentLibrary.sessions {
+            session.onAutomaticActions = { [weak self, weak session] ids, requiresReadOnly in
+                Task { @MainActor in
+                    guard let self, let session else { return }
+                    for id in ids { await self.executeAgentAction(id, in: session, requiresReadOnly: requiresReadOnly, automatic: true) }
+                }
+            }
+        }
+    }
+    func executeAgentAction(_ id: String, in session: AgentSession, requiresReadOnly: Bool = false, automatic: Bool = false) async {
         guard canExecuteAgent(session), allowNavigation(), let profile = active,
-              let action = session.beginExecution(id, connectionID: profile.id) else { return }
-        let object = selectedObject
-        // Capture the owner and profile before suspension; never resolve through the currently selected session.
+              let proposed = session.actions.first(where: { $0.id == id }), proposed.state == .awaitingApproval else { return }
+        // Planning uses the workbench connection; execution owns an independent connection.
         do {
-            let output = try await agentExecution(session.id, action, profile, object)
+            busy = true
+            defer { busy = false }
+            if let query = proposed.query {
+                let estimate = await engine.estimate(query)
+                if let index = session.actions.firstIndex(where: { $0.id == id }) { session.actions[index].executionEstimate = estimate.summary + "\n" + estimate.details }
+                if estimate.severity != .normal {
+                    if automatic && requiresReadOnly { return } // Await manual review when automatic read planning is uncertain/large.
+                    if !automatic { guard await confirmEstimate(estimate) else { return } }
+                }
+            }
+        }
+        guard let action = session.beginExecution(id, connectionID: profile.id) else { return }
+        let object = selectedObject
+        do {
+            let output = try await agentExecution(session.id, action, profile, object, readOnly || requiresReadOnly)
             session.resolve(id, output: output, failed: false)
         } catch { session.resolve(id, output: String(localized: "操作失败：") + error.localizedDescription, failed: true) }
+    }
+    func loadStructure() async {
+        guard let object = selectedObject, let active else { return }
+        structureLoading = true; structureError = nil; schemaMetadata = nil
+        defer { structureLoading = false }
+        do {
+            let metadata = try await engine.schemaMetadata(for: object)
+            guard self.active?.id == active.id && selectedObject == object else { return }
+            schemaMetadata = metadata
+        } catch { if self.active?.id == active.id && selectedObject == object { structureError = error.localizedDescription } }
+    }
+    func loadRelationships() async {
+        guard let active, !relationshipLoading else { return }
+        relationshipLoading = true; relationshipError = nil
+        defer { relationshipLoading = false }
+        do {
+            let value = try await engine.relationships(for: objects)
+            guard self.active?.id == active.id else { return }; relationships = value
+        } catch { if self.active?.id == active.id { relationshipError = error.localizedDescription } }
     }
 
     func exportCSV() { exportResult(.csv) }

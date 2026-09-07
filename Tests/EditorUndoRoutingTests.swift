@@ -49,6 +49,14 @@ import SwiftUI
         precondition(NSApp.sendAction(redo.action!, to: a, from: redo))
         precondition(a.string == "SELECT 40; -- undo040" && aText == a.string)
         precondition(!a.validateUserInterfaceItem(redo))
+        a.setSelectedRange(NSRange(location: 3, length: 0))
+        let copy = NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        let cut = NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        precondition(a.validateUserInterfaceItem(copy) && a.validateUserInterfaceItem(cut))
+        a.isEditable = false
+        precondition(a.validateUserInterfaceItem(copy) && !a.validateUserInterfaceItem(cut))
+        a.string = ""
+        precondition(!a.validateUserInterfaceItem(copy) && !a.validateUserInterfaceItem(cut))
         print("PASS native pasteboard readSelection + production delegate/highlight + NSApplication.sendAction undo/redo and menu validation; general clipboard unchanged")
     }
 }

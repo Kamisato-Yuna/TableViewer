@@ -40,6 +40,7 @@ actor ReplyHold {
         session.actions.append(action); return action
     }
     @MainActor static func main() async throws {
+        setbuf(stdout, nil)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("tableviewer-agent-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -49,7 +50,7 @@ actor ReplyHold {
         let store = WorkspaceStore(agentLibrary: library, agentExecution: { id, action, profile, object in
             await hold.wait()
             return try await executor.execute(sessionID: id, action: action, profile: profile, object: object)
-        })
+        }, scripts: ScriptLibrary(directory: directory.appendingPathComponent("Scripts")))
         store.profiles = [a,b]
         await store.connect(a)
         let initial = library.selected!
@@ -67,7 +68,7 @@ actor ReplyHold {
         try check(library.sessions.count == 2 && initial.input == "unsent draft" && initial.id != library.selected?.id, "new conversation preserves previous history and draft")
         let owner = library.selected!
         let action = addAction(owner, name: "execute_query")
-        let execution = Task { await store.executeAgentAction(action.id, in: owner) }
+        let execution = Task { await store.executeAgentAction(action.id, in: owner, automatic: true) }
         try await eventually { await hold.waiting }
         try check(owner.actions.last?.state == .executing && !store.busy, "tool owns separate execution state without blocking database navigation")
         await store.connect(b); store.newAgentSession()
@@ -127,6 +128,7 @@ actor ReplyHold {
         library.open(owner.id)
         await store.removeConnection(a)
         try check(library.sessions.contains { $0.id == owner.id } && owner.actions.first?.outcome != nil && !store.canExecuteAgent(owner), "removing a connection preserves history and prevents implicit rebinding")
+        await store.chooseObject(DatabaseObject(name: "marker"))
         store.selectRow(store.result.rows.first?.id)
         if store.draft.count > 1 { store.draft[1] = .text("unsaved") }
         await store.connect(a)

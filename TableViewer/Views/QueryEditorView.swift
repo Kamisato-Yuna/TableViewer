@@ -16,6 +16,7 @@ struct QueryEditorView: View {
                                     Button("关闭脚本") {
                                         do {
                                             try store.scripts.close(script.id)
+                                            store.queryEditorViews.removeValue(forKey: script.id)
                                             if store.selectedScriptID == script.id {
                                                 store.selectedScriptID = nil; store.query = ""
                                                 if let next = store.openScripts.first { store.openScript(next.id) }
@@ -29,13 +30,17 @@ struct QueryEditorView: View {
                 Button { store.nameScript() } label: { Image(systemName: "plus") }.help("新建命名脚本")
                 Button { store.showScripts = true } label: { Image(systemName: "clock.arrow.circlepath") }.help("全部本地脚本")
                 Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1") }.help("切换上下或左右分栏")
-            }.controlSize(.small).padding(12)
-            if horizontal {
+            }.controlSize(.small).padding(12).disabled(store.busy)
+            if store.selectedScriptID == nil {
+                ContentUnavailableView("新建命名脚本", systemImage: "doc.badge.plus", description: Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。"))
+                Button("新建脚本") { store.nameScript() }.padding()
+            } else if horizontal {
                 HSplitView { editor.frame(minWidth: 260, idealWidth: 440); results.frame(minWidth: 260) }
             } else {
                 VSplitView { editor.frame(minHeight: 150, idealHeight: 260); results.frame(minHeight: 150) }
             }
         }
+        .onAppear { if store.selectedScriptID == nil { store.nameScript() } }
         .sheet(isPresented: $store.showScripts) { ScriptLibraryView(store: store) }
         .alert(store.renamingScriptID == nil ? String(localized: "新建脚本") : String(localized: "重命名脚本"), isPresented: $store.showScriptName) {
             TextField("脚本名称", text: $store.scriptName)
@@ -60,14 +65,38 @@ struct QueryEditorView: View {
         }
     }
     private var editor: some View {
-        VStack(spacing: 0) {
+        let scriptID = store.selectedScriptID
+        let initialText = store.query
+        // SwiftUI may update the outgoing editor before dismantling it. Its binding
+        // must continue to refer to that script, not the newly selected script.
+        let scriptText = Binding<String>(
+            get: { [weak store] in
+                guard let store else { return initialText }
+                if store.selectedScriptID == scriptID { return store.query }
+                if let scriptID, let view = store.queryEditorViews[scriptID]?.documentView as? NSTextView { return view.string }
+                return initialText
+            },
+            set: { [weak store] value in
+                guard let store, store.selectedScriptID == scriptID else { return }
+                store.query = value
+            }
+        )
+        return VStack(spacing: 0) {
             HStack {
                 Text(store.active?.kind == .mongodb ? "MongoDB JSON" : "SQL").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button { Task { await store.runQuery() } } label: { Label(store.querySelection.length > 0 ? String(localized: "运行选区") : String(localized: "运行"), systemImage: "play.fill") }
                     .buttonStyle(.glassProminent).controlSize(.small).disabled(store.busy || store.query.isEmpty)
             }.padding(12)
-            CodeEditor(text: $store.query, isJSON: store.active?.kind == .mongodb, selectionChanged: { store.querySelection = $0 }).id(store.selectedScriptID)
+            CodeEditor(text: scriptText, isJSON: store.active?.kind == .mongodb,
+                       selectionChanged: { [weak store] range in
+                           guard let store, store.selectedScriptID == scriptID else { return }
+                           store.querySelection = range
+                       },
+                       retainedView: scriptID.flatMap { store.queryEditorViews[$0] },
+                       retainView: { [weak store] view in
+                           if let scriptID { store?.queryEditorViews[scriptID] = view }
+                       }).id(scriptID)
             HStack {
                 Text("⌘↵ 运行 · ⌘/ 注释 · ⌘Z 撤销 · ⇧⌘Z 重做").font(.caption2).foregroundStyle(.secondary)
                 Spacer()
@@ -140,6 +169,7 @@ struct ScriptLibraryView: View {
                 do {
                     if let selected = store.selectedScriptID, deleting.contains(selected) { store.selectedScriptID = nil; store.query = "" }
                     try store.scripts.delete(deleting)
+                    for id in deleting { store.queryEditorViews.removeValue(forKey: id) }
                 } catch { store.report(error) }
             }
         } message: { Text("删除后无法撤销，数据库数据不受影响。") }
@@ -153,12 +183,18 @@ struct CodeEditor: NSViewRepresentable {
     @Binding var text: String
     var isJSON = false
     var selectionChanged: (NSRange) -> Void = { _ in }
+    var retainedView: NSScrollView? = nil
+    var retainView: (NSScrollView) -> Void = { _ in }
     @AppStorage("editorFont") private var fontName = "SF Mono"
     @AppStorage("editorSize") private var fontSize = 13.0
     @AppStorage("editorLigatures") private var ligatures = false
     @AppStorage("editorLineNumbers") private var lineNumbers = true
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
+        if let retainedView, let view = retainedView.documentView as? QueryTextView {
+            view.delegate = context.coordinator
+            return retainedView
+        }
         let scroll = NSScrollView()
         let view = QueryTextView(frame: .zero)
         scroll.documentView = view
@@ -176,6 +212,7 @@ struct CodeEditor: NSViewRepresentable {
         scroll.verticalRulerView = QueryLineRuler(textView: view)
         scroll.hasVerticalRuler = true
         scroll.drawsBackground = false
+        retainView(scroll)
         return scroll
     }
     func updateNSView(_ scroll: NSScrollView, context: Context) {
@@ -191,13 +228,24 @@ struct CodeEditor: NSViewRepresentable {
             view.setSelectedRange(NSRange(location: 0, length: 0))
             context.coordinator.highlight(view)
         } else if changed { context.coordinator.highlight(view) }
+        if context.coordinator.needsSelectionRestore {
+            context.coordinator.needsSelectionRestore = false
+            let coordinator = context.coordinator
+            DispatchQueue.main.async { [weak view, weak coordinator] in
+                guard let view, let coordinator, view.delegate === coordinator else { return }
+                coordinator.parent.selectionChanged(view.selectedRange())
+                view.window?.makeFirstResponder(view)
+            }
+        }
     }
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CodeEditor
+        var needsSelectionRestore = true
         init(_ parent: CodeEditor) { self.parent = parent }
         func textDidChange(_ notification: Notification) {
             guard let view = notification.object as? QueryTextView else { return }
-            parent.text = view.string; highlight(view)
+            if parent.text != view.string { parent.text = view.string }
+            highlight(view)
         }
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let view = notification.object as? NSTextView else { return }
@@ -229,6 +277,30 @@ struct CodeEditor: NSViewRepresentable {
 }
 
 final class QueryTextView: NSTextView {
+    // A window undo manager would mix operations from different scripts.
+    private let scriptUndoManager = UndoManager()
+    override var undoManager: UndoManager? { scriptUndoManager }
+    @objc func undo(_ sender: Any?) {
+        guard scriptUndoManager.canUndo else { return }
+        breakUndoCoalescing()
+        let before = string
+        scriptUndoManager.undo()
+        if string != before { didChangeText() }
+    }
+    @objc func redo(_ sender: Any?) {
+        guard scriptUndoManager.canRedo else { return }
+        breakUndoCoalescing()
+        let before = string
+        scriptUndoManager.redo()
+        if string != before { didChangeText() }
+    }
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(undo(_:)) { return scriptUndoManager.canUndo }
+        if item.action == #selector(redo(_:)) { return scriptUndoManager.canRedo }
+        if item.action == #selector(copy(_:)) { return isSelectable && !string.isEmpty }
+        if item.action == #selector(cut(_:)) { return isEditable && !string.isEmpty }
+        return super.validateUserInterfaceItem(item)
+    }
     var ligaturesEnabled = false
     override func copy(_ sender: Any?) {
         let original = selectedRange()

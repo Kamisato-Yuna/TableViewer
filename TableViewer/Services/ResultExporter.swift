@@ -22,7 +22,7 @@ struct ResultExporter {
     func encode(_ input: QueryResult) throws -> String {
         var result = input
         guard result.rows.allSatisfy({ $0.cells.count == result.columns.count }) else {
-            throw DatabaseFailure("导出结果的列数与数据不一致。")
+            throw DatabaseFailure(String(localized: "导出结果的列数与数据不一致。"))
         }
         // libpq uses the text protocol; bytea has an authoritative OID/type name.
         // Decode only that type, never infer binary/numeric types from arbitrary text.
@@ -56,7 +56,7 @@ struct ResultExporter {
                 let documents = try result.rows.map { row -> String in
                     guard let document = row.document,
                           (try? JSONSerialization.jsonObject(with: Data(document.utf8))) is [String: Any] else {
-                        throw DatabaseFailure("MongoDB JSON 导出需要完整的原始文档。")
+                        throw DatabaseFailure(String(localized: "MongoDB JSON 导出需要完整的原始文档。"))
                     }
                     return document
                 }
@@ -77,16 +77,16 @@ struct ResultExporter {
                 }.joined(separator: "\n") + "\n    </row>"
             }.joined(separator: "\n")
             guard result.columns.allSatisfy({ validXML($0.name) && validXML($0.type) }) else {
-                throw DatabaseFailure("列名或类型包含 XML 无法表示的字符，请使用 JSON 导出。")
+                throw DatabaseFailure(String(localized: "列名或类型包含 XML 无法表示的字符，请使用 JSON 导出。"))
             }
             return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<result>\n  <columns>\n\(columns)\n  </columns>\n  <rows>\n\(rows)\n  </rows>\n</result>\n"
         case .sql:
-            guard sourceKind != .mongodb else { throw DatabaseFailure("MongoDB 文档不能直接导出为关系数据库 INSERT，请使用 JSON。") }
+            guard sourceKind != .mongodb else { throw DatabaseFailure(String(localized: "MongoDB 文档不能直接导出为关系数据库 INSERT，请使用 JSON。")) }
             guard let table, !table.name.isEmpty, !table.name.contains("\0"), !table.schema.contains("\0"),
                   !result.columns.isEmpty,
                   Set(result.columns.map(\.name)).count == result.columns.count,
                   result.columns.allSatisfy({ !$0.name.contains("\0") }) else {
-                throw DatabaseFailure("INSERT 导出需要目标表名和不重复的有效列名。")
+                throw DatabaseFailure(String(localized: "INSERT 导出需要目标表名和不重复的有效列名。"))
             }
             let columns = result.columns.map { quoteIdentifier($0.name) }.joined(separator: ", ")
             let statements = try result.rows.map { row in
@@ -100,9 +100,9 @@ struct ResultExporter {
         let bytes = Array(value.utf8)
         var output = Data()
         if bytes.starts(with: [92, 120]) {
-            guard (bytes.count - 2).isMultiple(of: 2) else { throw DatabaseFailure("PostgreSQL bytea 数据格式无效。") }
+            guard (bytes.count - 2).isMultiple(of: 2) else { throw DatabaseFailure(String(localized: "PostgreSQL bytea 数据格式无效。")) }
             for index in stride(from: 2, to: bytes.count, by: 2) {
-                guard let byte = UInt8(String(decoding: bytes[index...index + 1], as: UTF8.self), radix: 16) else { throw DatabaseFailure("PostgreSQL bytea 数据格式无效。") }
+                guard let byte = UInt8(String(decoding: bytes[index...index + 1], as: UTF8.self), radix: 16) else { throw DatabaseFailure(String(localized: "PostgreSQL bytea 数据格式无效。")) }
                 output.append(byte)
             }
         } else {
@@ -112,7 +112,7 @@ struct ResultExporter {
                 if index + 1 < bytes.count, bytes[index + 1] == 92 { output.append(92); index += 2; continue }
                 guard index + 3 < bytes.count, bytes[index + 1...index + 3].allSatisfy({ (48...55).contains($0) }),
                       let byte = UInt8(String(decoding: bytes[index + 1...index + 3], as: UTF8.self), radix: 8) else {
-                    throw DatabaseFailure("PostgreSQL bytea 数据格式无效。")
+                    throw DatabaseFailure(String(localized: "PostgreSQL bytea 数据格式无效。"))
                 }
                 output.append(byte); index += 4
             }
@@ -148,7 +148,7 @@ struct ResultExporter {
             return sqlDialect == .sqlite ? "X'\(hex)'" : "decode('\(hex)', 'hex')"
         case .text(let value):
             if value.contains("\0") {
-                guard sqlDialect == .sqlite else { throw DatabaseFailure("PostgreSQL text 不支持 NUL 字符，无法无损导出该值。") }
+                guard sqlDialect == .sqlite else { throw DatabaseFailure(String(localized: "PostgreSQL text 不支持 NUL 字符，无法无损导出该值。")) }
                 return "CAST(X'\(Data(value.utf8).map { String(format: "%02x", $0) }.joined())' AS TEXT)"
             }
             let escaped = value.replacingOccurrences(of: "'", with: "''")

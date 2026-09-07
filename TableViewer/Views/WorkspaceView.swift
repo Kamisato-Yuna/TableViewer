@@ -70,9 +70,9 @@ struct WorkspaceView: View {
                     .font(.system(size: 22, weight: .light)).foregroundStyle(.tint)
                     .frame(width: 42, height: 42).background(.tint.opacity(0.08), in: .rect(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(WorkspaceTab.basic.contains(store.tab) && store.tab != .query ? store.selectedObject?.name ?? String(localized: "数据库") : store.tab == .query ? String(localized: "查询工作台") : store.tab == .shell ? "Mongo Shell" : store.tab == .replica ? String(localized: "副本集") : String(localized: "Agent 助手"))
+                    Text(WorkspaceTab.basic.contains(store.tab) && store.tab != .query ? store.selectedObject?.name ?? String(localized: "数据库") : store.tab == .query ? String(localized: "查询工作台") : store.tab == .shell ? "Mongo Shell" : store.tab == .replica ? String(localized: "副本集") : store.tab == .overview ? String(localized: "对象概览") : store.tab == .relationships ? String(localized: "实体关系") : String(localized: "Agent 助手"))
                         .font(.system(size: 23, weight: .semibold, design: .rounded))
-                    Text(store.tab == .query ? (store.active?.kind == .mongodb ? String(localized: "MongoDB · JSON 命令") : String(localized: "SQL 编辑器 · ⌘↵ 运行")) : String(localized: "\(store.selectedObject?.schema.isEmpty == false ? store.selectedObject!.schema + " / " : "")\(store.active?.name ?? "")  /  \(store.selectedObject?.isView == true ? String(localized: "视图") : store.active?.kind == .mongodb ? String(localized: "集合") : String(localized: "数据表"))"))
+                    Text(store.tab == .overview || store.tab == .relationships ? (store.active?.name ?? "") : store.tab == .query ? (store.active?.kind == .mongodb ? String(localized: "MongoDB · JSON 命令") : String(localized: "SQL 编辑器 · ⌘↵ 运行")) : String(localized: "\(store.selectedObject?.schema.isEmpty == false ? store.selectedObject!.schema + " / " : "")\(store.active?.name ?? "")  /  \(store.selectedObject?.isView == true ? String(localized: "视图") : store.active?.kind == .mongodb ? String(localized: "集合") : String(localized: "数据表"))"))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 6)
@@ -81,13 +81,33 @@ struct WorkspaceView: View {
                 }.pickerStyle(.segmented).labelsHidden().frame(width: 190).disabled(store.busy).opacity(WorkspaceTab.basic.contains(store.tab) ? 1 : 0).allowsHitTesting(WorkspaceTab.basic.contains(store.tab))
             }.padding(.horizontal, 24).padding(.vertical, 22)
             Divider()
-            if store.tab == .structure { StructureView(store: store) }
+            if store.tab == .overview {
+                ObjectBrowserView(objects: store.objects, kind: store.active?.kind ?? .sqlite, openObject: { object in Task { await store.chooseObject(object) } })
+            }
+            else if store.tab == .relationships {
+                Group {
+                    if store.relationshipLoading { ProgressView() }
+                    else if let failure = store.relationshipError { ContentUnavailableView("操作未完成", systemImage: "exclamationmark.triangle", description: Text(failure)) }
+                    else { RelationshipView(relationships: store.relationships, kind: store.active?.kind ?? .sqlite, openObject: { object in Task { await store.chooseObject(object) } }) }
+                }.task(id: store.active?.id) { await store.loadRelationships() }
+            }
+            else if store.tab == .structure {
+                Group {
+                    if store.selectedObject == nil { ContentUnavailableView("选择一个数据库对象", systemImage: "tablecells", description: Text("从左侧或对象概览选择表、视图或集合后查看结构。")) }
+                    else if let metadata = store.schemaMetadata, let object = store.selectedObject { StructureMetadataView(metadata: metadata, object: object, kind: store.active?.kind ?? .sqlite) }
+                    else if let failure = store.structureError { ContentUnavailableView("操作未完成", systemImage: "exclamationmark.triangle", description: Text(failure)) }
+                    else { ProgressView() }
+                }.task(id: store.selectedObject?.id) { await store.loadStructure() }
+            }
             else if store.tab == .query { QueryEditorView(store: store) }
             else if store.tab == .replica { ReplicaSetView(store: store) }
             else if store.tab == .shell { MongoShellView(store: store) }
             else if store.tab == .agent { AgentView(store: store) }
             else {
                 tableActions
+                if let estimate = store.browseEstimate {
+                    DisclosureGroup(estimate.summary) { Text(verbatim: estimate.details).font(.caption.monospaced()).textSelection(.enabled) }.font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 6)
+                }
                 dataGrid
                 pagination
             }
@@ -98,7 +118,7 @@ struct WorkspaceView: View {
         HStack(spacing: 12) {
             Menu {
                 Button("关键词（当前页）") { store.filterIsCondition = false }
-                Button(store.active?.kind == .mongodb ? "JSON 条件" : "WHERE 条件") { store.filterIsCondition = true }
+                Button(String(localized: store.active?.kind == .mongodb ? "JSON 条件" : "WHERE 条件")) { store.filterIsCondition = true }
             } label: { Image(systemName: "line.3.horizontal.decrease") }
             TextField(store.filterIsCondition ? (store.active?.kind == .mongodb ? "{ \"id\": 1 }" : "id = 1") : String(localized: "筛选当前页…"), text: store.filterIsCondition ? $store.condition : $store.rowSearch)
                 .textFieldStyle(.plain).font(.system(size: 12)).frame(maxWidth: 220)
@@ -205,7 +225,7 @@ struct SidebarView: View {
                     }
                 } header: { Text("连接").font(.system(size: 10, weight: .semibold)).tracking(1) }
                 Section("Agent") {
-                    Button { store.newAgentSession() } label: { Label("新会话", systemImage: "square.and.pencil") }.buttonStyle(.plain)
+                    Button { store.newAgentSession() } label: { Label("新会话", systemImage: "square.and.pencil").frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect) }.buttonStyle(.plain)
                     Button { store.openAgentHistory() } label: {
                         Label("所有会话", systemImage: "bubble.left.and.bubble.right").font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                     }.buttonStyle(.plain)
@@ -215,10 +235,14 @@ struct SidebarView: View {
                 if store.active != nil {
                     Section("最近 10 个脚本") {
                         ForEach(Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))) { script in
-                            Button(script.name) { store.openScript(script.id) }.buttonStyle(.plain).lineLimit(1)
+                            Button { store.openScript(script.id) } label: {
+                                Text(script.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+                            }.buttonStyle(.plain)
                         }
                     }
                     Section("工作台") {
+                        workspaceLink(.overview)
+                        workspaceLink(.relationships)
                         workspaceLink(.query)
                         if store.active?.kind == .mongodb { workspaceLink(.shell); workspaceLink(.replica) }
                     }
