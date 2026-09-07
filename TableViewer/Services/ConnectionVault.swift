@@ -53,7 +53,12 @@ final class CredentialSessionStore: @unchecked Sendable {
 }
 
 enum ConnectionVault {
-    static let service = "local.yuna.TableViewer.connections"
+    // A separately signed test app uses its own namespace, including the fixed Agent key ID.
+    // The shipping identifier retains all existing credentials unchanged.
+    static func service(for bundleID: String?) -> String {
+        (bundleID ?? "local.yuna.TableViewer") + ".connections"
+    }
+    static let service = service(for: Bundle.main.bundleIdentifier)
     private static let credentials = CredentialSessionStore(enabled: false, load: readKeychain, persist: saveKeychain, delete: removeKeychain)
     @MainActor private static var observers: [NSObjectProtocol] = []
     @MainActor private static var observationStatus: OSStatus?
@@ -112,8 +117,12 @@ enum ConnectionVault {
 }
 
 enum LocalWorkspace {
+    static var storageDirectoryName: String {
+        let id = Bundle.main.bundleIdentifier ?? "local.yuna.TableViewer"
+        return id == "local.yuna.TableViewer" ? "TableViewer" : id
+    }
     static var directory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("TableViewer", isDirectory: true)
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(storageDirectoryName, isDirectory: true)
     }
     static func loadProfiles() throws -> [ConnectionProfile] {
         let url = directory.appendingPathComponent("connections.json")

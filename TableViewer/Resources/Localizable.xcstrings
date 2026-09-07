@@ -6547,7 +6547,6 @@
       }
     },
     "新会话": {
-      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -8082,6 +8081,230 @@
           "stringUnit": {
             "state": "translated",
             "value": "PostgreSQL 目录元数据；UNIQUE MEMBER 表示参与唯一约束，复合约束不保证单列唯一。DDL 为结构参考，完整迁移请使用 pg_dump。"
+          }
+        }
+      }
+    },
+    "手动审批": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动审批"
+          }
+        }
+      }
+    },
+    "仅审批敏感操作": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve sensitive operations"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅审批敏感操作"
+          }
+        }
+      }
+    },
+    "完全自动审批": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完全自动审批"
+          }
+        }
+      }
+    },
+    "执行审批": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Execution approval"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行审批"
+          }
+        }
+      }
+    },
+    "结果始终留在本机，发送给 API 仍需确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Results stay on this Mac; sending them to the API still requires confirmation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果始终留在本机，发送给 API 仍需确认。"
+          }
+        }
+      }
+    },
+    "先配置 API 地址和模型，即可开始对话。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configure an API URL and model to start chatting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先配置 API 地址和模型，即可开始对话。"
+          }
+        }
+      }
+    },
+    "配置 API": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configure API"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置 API"
+          }
+        }
+      }
+    },
+    "解释结构、编写查询、一起排查问题。数据库操作遵循当前审批级别，结果共享由你确认。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explore schemas, write queries, and investigate issues together. Operations follow your approval setting; sharing results requires your confirmation."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解释结构、编写查询、一起排查问题。数据库操作遵循当前审批级别，结果共享由你确认。"
+          }
+        }
+      }
+    },
+    "回答仅用于澄清需求；数据库操作遵循当前审批级别。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answers clarify your request; database operations follow the selected approval setting."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回答仅用于澄清需求；数据库操作遵循当前审批级别。"
+          }
+        }
+      }
+    },
+    "在浮窗查看完整命令": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View full command in popover"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在浮窗查看完整命令"
+          }
+        }
+      }
+    },
+    "完整命令": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full command"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整命令"
+          }
+        }
+      }
+    },
+    "完整执行命令": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full execution command"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完整执行命令"
+          }
+        }
+      }
+    },
+    "复制命令": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy command"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制命令"
+          }
+        }
+      }
+    },
+    "执行命令首行：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First command line:"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行命令首行："
           }
         }
       }

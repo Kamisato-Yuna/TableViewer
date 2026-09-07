@@ -45,6 +45,33 @@ struct AgentMessage: Codable, Identifiable, Sendable {
 enum AgentDelivery: String, Codable { case generating, complete, stopped, failed, interrupted }
 enum AgentActionState: String, Codable { case awaitingApproval, executing, completed, failed, rejected, uncertain }
 
+/// Approval changes execution consent only; provider sharing remains a separate action.
+enum AgentApprovalMode: String, Codable, CaseIterable, Identifiable {
+    case manual, sensitiveOnly, automatic
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .manual: return String(localized: "手动审批")
+        case .sensitiveOnly: return String(localized: "仅审批敏感操作")
+        case .automatic: return String(localized: "完全自动审批")
+        }
+    }
+    func permitsAutomaticExecution(_ action: AgentAction, kind: DatabaseKind) -> Bool {
+        guard self != .manual, ["inspect_schema", "execute_query"].contains(action.call.function.name) else { return false }
+        if self == .automatic || action.call.function.name == "inspect_schema" { return true }
+        guard let query = action.query else { return false }
+        // This is only a candidate selection. The executor MUST enforce database read-only
+        // permissions even for SELECT (functions and CTEs may write).
+        if kind == .mongodb {
+            guard let object = try? jsonObject(query), object.count > 0 else { return false }
+            return object.keys.contains("find") || object.keys.contains("count") || object.keys.contains("distinct")
+        }
+        let words = query.uppercased().split { !$0.isLetter && $0 != "_" }
+        guard let first = words.first, ["SELECT", "WITH", "VALUES", "SHOW", "EXPLAIN"].contains(String(first)) else { return false }
+        return !words.contains("ANALYZE")
+    }
+}
+
 struct AgentQuestion: Decodable, Sendable {
     static let maximumOptions = 12
     var question: String
@@ -85,6 +112,7 @@ struct AgentAction: Codable, Identifiable, Sendable {
     var connectionID: UUID
     var connectionName: String
     var outcome: String?
+    var executionEstimate: String?
     var state: AgentActionState = .awaitingApproval
     var shared = false
     var draftAnswer = ""
@@ -117,7 +145,7 @@ struct AgentContext: Codable, Sendable {
         帮助解释数据结构、编写查询、诊断问题。不要声称执行未实际完成的操作。
         每条回复的 Markdown 应独立完整；接续被停止的回复时，重新打开所需代码块，不要只输出上一条代码块的结束标记。
         信息不足时先用 ask_user 提出一个简短问题，通常提供两到三个选项；选择具体表或字段时可提供最多十二个选项。也允许无选项的自由回答。回答问题不是数据库操作授权。
-        可以使用 inspect_schema 和 execute_query 工具；每次调用均须用户在应用中批准。
+        可以使用 inspect_schema 和 execute_query 工具；执行审批由用户在应用中选择的审批级别决定，结果共享仍须单独确认。
         SQL 工具每次只接受一条语句；MongoDB 工具接受 JSON 数据库命令，命令名必须在首位，不是 JavaScript。
         \(kind == .sqlite ? "SQLite：表结构中的 INTEGER PRIMARY KEY 通常是 rowid 别名，不需要独立索引；PRAGMA index_list 没有列出它不代表主键缺少索引。视图也没有自己的索引。判断具体查询是否使用索引，应提出只读 EXPLAIN QUERY PLAN；只有索引列表时只能描述索引配置，不能声称验证了索引使用率。查询 PRAGMA 表值函数时，用双引号引用 unique 等关键字列。" : "")
         查询尽量限制在 100 行。写入前在说明中明确影响，不发起无关写入。不要请求密钥、连接密码或完整 URI。

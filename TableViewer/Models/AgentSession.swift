@@ -19,6 +19,9 @@ import Observation
     var error: String? { didSet { changed(true) } }
     var shareSchema = false { didSet { changed(true) } }
     var showSettings = false
+    var approvalMode: AgentApprovalMode = .manual { didSet { changed(true) } }
+    /// Called only for freshly generated actions; restoring a session never executes history.
+    @ObservationIgnored var onAutomaticActions: (([String], Bool) -> Void)?
     private var task: Task<Void, Never>?
     private var generation = 0
     var responseID: UUID?
@@ -177,14 +180,17 @@ import Observation
                 }
                 guard let self, generation == current, !Task.isCancelled, let index = messages.firstIndex(where: { $0.id == id }) else { return }
                 message.id = id; message.delivery = .complete; messages[index] = message
-                actions += (message.toolCalls ?? []).map {
+                let newActions = (message.toolCalls ?? []).map {
                     var action = AgentAction(call: $0, messageID: id, connectionID: context.connectionID, connectionName: context.connectionName)
                     if $0.function.name == "ask_user", let failure = AgentQuestion.validationFailure($0.function.arguments) {
                         action.state = .failed; action.outcome = failure
                     }
                     return action
                 }
+                actions += newActions
                 running = false; task = nil
+                let automatic = newActions.filter { self.approvalMode.permitsAutomaticExecution($0, kind: context.kind) }.map(\.id)
+                if !automatic.isEmpty { onAutomaticActions?(automatic, approvalMode == .sensitiveOnly) }
             } catch {
                 guard let self, generation == current, let index = messages.firstIndex(where: { $0.id == id }) else { return }
                 if messages[index].content?.isEmpty != false { messages[index].content = previous ?? "" }

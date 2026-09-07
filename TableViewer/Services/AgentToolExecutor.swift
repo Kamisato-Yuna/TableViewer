@@ -3,7 +3,7 @@ import Foundation
 // Each conversation owns its driver connection. UI navigation never reconnects this engine.
 actor AgentToolExecutor {
     private var resources: [UUID: (ConnectionProfile, DatabaseEngine)] = [:]
-    func execute(sessionID: UUID, action: AgentAction, profile: ConnectionProfile, object: DatabaseObject?) async throws -> String {
+    func execute(sessionID: UUID, action: AgentAction, profile: ConnectionProfile, object: DatabaseObject?, readOnly: Bool = false) async throws -> String {
         guard profile.id == action.connectionID else { throw DatabaseFailure(String(localized: "请连接此会话原来的数据库后再批准操作。")) }
         var credential = ""
         do {
@@ -26,7 +26,7 @@ actor AgentToolExecutor {
                 return try jsonText(["objects": objects.prefix(100).map(\.qualifiedName), "objectKinds": kinds, "selectedObject": object?.name ?? "", "columns": fields], pretty: true)
             case "execute_query":
                 guard let query = action.query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw DatabaseFailure(String(localized: "工具调用缺少 query。")) }
-                let result = try await engine.run(query)
+                let result = try await engine.run(query, readOnly: readOnly)
                 let rows: [[Any]] = result.rows.prefix(100).map { $0.cells.map { value -> Any in value.isNull ? NSNull() : value.display } }
                 return try jsonText(["columns": result.columns.map(\.name), "rows": rows, "affectedRows": result.affectedRows, "truncated": result.hasMore || result.rows.count > 100], pretty: true)
             default: throw DatabaseFailure(String(localized: "不支持模型提出的工具：\(action.call.function.name)"))

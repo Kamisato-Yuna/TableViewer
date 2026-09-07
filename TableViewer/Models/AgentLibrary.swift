@@ -19,6 +19,7 @@ struct StoredAgentSession: Codable {
     var configuration: AgentConfiguration
     var input: String
     var shareSchema: Bool
+    var approvalMode: AgentApprovalMode?
     var messages: [StoredAgentMessage]
     var actions: [AgentAction]
     var error: String?
@@ -28,7 +29,7 @@ struct StoredAgentSession: Codable {
     @MainActor init(_ session: AgentSession) {
         id = session.id; title = session.title; createdAt = session.createdAt; updatedAt = session.updatedAt
         archived = session.archived; connection = session.connection; configuration = session.configuration
-        input = session.input; shareSchema = session.shareSchema; messages = session.messages.map(StoredAgentMessage.init)
+        input = session.input; shareSchema = session.shareSchema; approvalMode = session.approvalMode; messages = session.messages.map(StoredAgentMessage.init)
         actions = session.actions; error = session.error; responseID = session.responseID
         requestHistory = session.requestHistory.map(StoredAgentMessage.init); requestContext = session.requestContext
     }
@@ -36,6 +37,7 @@ struct StoredAgentSession: Codable {
         let session = AgentSession(id: id)
         session.title = title; session.createdAt = createdAt; session.archived = archived
         session.connection = connection; session.configuration = configuration; session.input = input; session.shareSchema = shareSchema
+        session.approvalMode = approvalMode ?? .manual
         session.messages = messages.map { stored in
             var message = stored.restored
             if message.delivery == .generating { message.delivery = .interrupted }

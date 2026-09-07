@@ -9,7 +9,7 @@ struct AgentView: View {
             if let agent = store.agent { AgentConversationView(store: store, agent: agent).id(agent.id) }
             else {
                 ContentUnavailableView("会话历史", systemImage: "bubble.left.and.bubble.right", description: Text("创建会话后，消息和操作进度会保存在本机。"))
-                Button("所有会话") { store.showAgentHistory = true }.padding()
+                HStack { Button("新会话", systemImage: "plus") { store.newAgentSession() }; Button("所有会话") { store.showAgentHistory = true } }.padding()
             }
         }.sheet(isPresented: $store.showAgentHistory) { AgentHistoryView(store: store) }
     }
@@ -46,6 +46,19 @@ private struct AgentConversationView: View {
                     }
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.bottom, 12)
+            HStack {
+                Picker("执行审批", selection: $agent.approvalMode) {
+                    ForEach(AgentApprovalMode.allCases) { mode in Text(mode.title).tag(mode) }
+                }.frame(maxWidth: 300).disabled(agent.running || !agent.pendingActions.isEmpty)
+                Text("结果始终留在本机，发送给 API 仍需确认。").font(.caption).foregroundStyle(.secondary)
+            }.padding(.horizontal, 24).padding(.bottom, 12)
+            if !agent.ready {
+                HStack {
+                    Label("先配置 API 地址和模型，即可开始对话。", systemImage: "sparkles")
+                    Spacer()
+                    Button("配置 API") { agent.showSettings = true }.buttonStyle(.glassProminent)
+                }.padding(16).background(.quaternary).padding(.horizontal, 24).padding(.bottom, 12)
+            }
             Divider()
             ScrollViewReader { proxy in
                 ScrollView {
@@ -112,7 +125,7 @@ private struct AgentConversationView: View {
         VStack(alignment: .leading, spacing: 16) {
             Image(systemName: "sparkles").font(.system(size: 36, weight: .light)).foregroundStyle(.tint)
             Text("一个懂数据库的搭档。").font(.system(size: 25, weight: .semibold, design: .rounded))
-            Text("解释结构、编写查询、一起排查问题。每一步数据库操作，都会先交给你确认。").font(.system(size: 12)).foregroundStyle(.secondary)
+            Text("解释结构、编写查询、一起排查问题。数据库操作遵循当前审批级别，结果共享由你确认。").font(.system(size: 12)).foregroundStyle(.secondary)
             HStack(spacing: 10) {
                 prompt(String(localized: "帮我了解当前数据库")); prompt(String(localized: "写一个分页查询")); prompt(String(localized: "检查索引使用情况"))
             }
@@ -189,7 +202,7 @@ private struct AgentActionCard: View {
                     }
                     TextField("自由补充或修改选项…", text: Binding(get: { answer }, set: { agent.setAnswerDraft(action.id, text: $0) }), axis: .vertical).textFieldStyle(.roundedBorder)
                     Button("确认回答（保留在本机）") { agent.answer(action.id, text: answer) }.disabled(answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Text("回答仅用于澄清需求；数据库操作仍需单独批准。").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("回答仅用于澄清需求；数据库操作遵循当前审批级别。").font(.system(size: 11)).foregroundStyle(.secondary)
                 }
             }
             if agent.canReaskQuestion(action.id) {
@@ -198,10 +211,14 @@ private struct AgentActionCard: View {
                 }.disabled(store.busy || store.active?.id != agent.connection?.connectionID)
             }
             if let reason = (try? jsonObject(action.call.function.arguments))?["reason"] as? String { Text(reason).foregroundStyle(.secondary) }
+            if action.call.function.name == "inspect_schema" {
+                Text("inspect_schema").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+            }
             if let query = action.query {
-                AgentMarkdownView(text: "```sql\n" + query + "\n```")
+                AgentCommandPreview(command: query)
                 Text("通过此会话的独立数据库连接执行；不继承查询工作台事务。写入语句会修改数据。").font(.system(size: 11)).foregroundStyle(.secondary)
             }
+            if let estimate = action.executionEstimate { Text(verbatim: estimate).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
             if let result = action.outcome {
                 DisclosureGroup(action.shared ? String(localized: "已发送的回答或结果") : String(localized: "查看本地回答或结果（尚未发送）")) {
                     ScrollView { Text(verbatim: result).font(.system(size: 11, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(maxHeight: 220)
@@ -271,5 +288,37 @@ struct AgentSettingsView: View {
             try configuration.save()
             dismiss(); saved()
         } catch { message = error.localizedDescription }
+    }
+}
+
+/// Every execution keeps its first line visible, including while running and in history.
+private struct AgentCommandPreview: View {
+    var command: String
+    @State private var expanded = false
+    @State private var showFullCommand = false
+    private var firstLine: String { String(command.split(separator: "\n", omittingEmptySubsequences: true).first ?? Substring(command)) }
+    private var lengthy: Bool { command.count > 2_000 || command.components(separatedBy: "\n").count > 30 }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(verbatim: firstLine).font(.system(.caption, design: .monospaced)).lineLimit(1).textSelection(.enabled)
+                .accessibilityLabel("执行命令首行：" + firstLine)
+            if command != firstLine || command.count > 100 {
+                if lengthy {
+                    Button("在浮窗查看完整命令", systemImage: "arrow.up.left.and.arrow.down.right") { showFullCommand = true }
+                } else {
+                    DisclosureGroup("完整命令", isExpanded: $expanded) {
+                        Text(verbatim: command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            } else if lengthy {
+                Button("在浮窗查看完整命令", systemImage: "arrow.up.left.and.arrow.down.right") { showFullCommand = true }
+            }
+        }.popover(isPresented: $showFullCommand) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack { Text("完整执行命令").font(.headline); Spacer(); AgentCopyButton(text: command, label: String(localized: "复制命令")); Button("关闭") { showFullCommand = false }.keyboardShortcut(.cancelAction) }
+                ScrollView([.horizontal, .vertical]) { Text(verbatim: command).font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+            }.padding(20).frame(width: 660, height: 420)
+        }
     }
 }
