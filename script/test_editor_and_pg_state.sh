@@ -9,13 +9,16 @@ fi
 test_directory=$(mktemp -d "${TMPDIR:-/tmp}/tableviewer-editor-state.XXXXXX")
 trap 'rm -rf "$test_directory"' EXIT
 libpq_directory=$(brew --prefix libpq)
-# The focused native editor test needs no WorkspaceStore, MarkdownUI, app window,
-# user defaults, clipboard or Keychain. Compile the actual editor implementation.
+# Compile the actual editor implementation. The lifecycle host stays hidden and
+# uses minimal observable state, with no Keychain or general clipboard access.
 python3 - "$test_directory/CodeEditor.swift" <<'PY'
 import pathlib
 import sys
 source = pathlib.Path('TableViewer/Views/QueryEditorView.swift').read_text()
 pathlib.Path(sys.argv[1]).write_text('import SwiftUI\n' + source[source.index('struct CodeEditor:'):])
+editor = source[source.index('    private var editor:'):source.index('    private var results:')]
+host = 'import SwiftUI\nstruct QueryEditorHost: View {\n @Bindable var store: WorkspaceStore\n var body: some View { editor }\n' + editor + '}\n'
+pathlib.Path(sys.argv[1]).with_name('EditorHost.swift').write_text(host)
 PY
 xcrun swiftc -module-cache-path "$test_directory/ModuleCache" \
   "$test_directory/CodeEditor.swift" Tests/EditorUndoIsolationTests.swift \
@@ -26,6 +29,11 @@ xcrun swiftc -module-cache-path "$test_directory/ModuleCache" \
   "$test_directory/CodeEditor.swift" Tests/EditorUndoRoutingTests.swift \
   -o "$test_directory/EditorUndoRoutingTests"
 "$test_directory/EditorUndoRoutingTests"
+xcrun swiftc -module-cache-path "$test_directory/ModuleCache" \
+  TableViewer/Models/DatabaseModels.swift "$test_directory/CodeEditor.swift" \
+  "$test_directory/EditorHost.swift" Tests/EditorUndoLifecycleTests.swift \
+  -o "$test_directory/EditorUndoLifecycleTests"
+"$test_directory/EditorUndoLifecycleTests"
 cat > "$test_directory/Bridge.h" <<'HEADER'
 #include <sqlite3.h>
 #include <libpq-fe.h>
