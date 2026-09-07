@@ -10020,6 +10020,70 @@
           }
         }
       }
+    },
+    "常量表达式，无表扫描。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Constant expression; no table scan."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常量表达式，无表扫描。"
+          }
+        }
+      }
+    },
+    "为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name the script to start editing. Your changes will be saved automatically to a local .sql file."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。"
+          }
+        }
+      }
+    },
+    "选择一个数据库对象": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a Database Object"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个数据库对象"
+          }
+        }
+      }
+    },
+    "从左侧或对象概览选择表、视图或集合后查看结构。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a table, view, or collection in the sidebar or Object Overview to inspect its structure."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从左侧或对象概览选择表、视图或集合后查看结构。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
