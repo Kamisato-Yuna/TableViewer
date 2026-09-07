@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// Real driver tests against disposable data only. No ports means SQLite-only.
 /// Optional servers must be the dedicated acceptance040 fixtures, not user connections.
@@ -16,6 +17,7 @@ import Foundation
         try await engine.run(query).rows.first?.cells.first?.display ?? ""
     }
     @MainActor static func main() async throws {
+        setbuf(stdout, nil)
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("tv040-integration-" + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temporary) }
@@ -75,8 +77,8 @@ import Foundation
     }
     static func scalarValue(_ result: QueryResult) -> String { result.rows.first?.cells.first?.display ?? "" }
     @MainActor static func exportSQLite(_ engine: DatabaseEngine) async throws {
-        _ = try await engine.run("CREATE TABLE export_copy(empty TEXT, nullable TEXT, binary BLOB, text_value TEXT)")
-        let result = try await engine.run("SELECT '' AS empty, NULL AS nullable, X'00ff5c' AS binary, 'a''b' || char(10) || '=SUM(1)' AS text_value")
+        _ = try await engine.run("CREATE TABLE export_copy(empty TEXT, nullable TEXT, payload_binary BLOB, text_value TEXT)")
+        let result = try await engine.run("SELECT '' AS empty, NULL AS nullable, X'00ff5c' AS payload_binary, 'a''b' || char(10) || '=SUM(1)' AS text_value")
         let text = try ResultExporter(format: .sql, sourceKind: .sqlite, table: DatabaseObject(name: "export_copy")).encode(result)
         for statement in try SQLScript.statements(text, kind: .sqlite) { _ = try await engine.run(statement) }
         let restored = try await engine.run("SELECT * FROM export_copy")
@@ -153,7 +155,7 @@ import Foundation
         check(metadata.relationships.first?.sourceColumns == ["a", "b"] && metadata.relationships.first?.targetColumns == ["a", "b"], "PostgreSQL composite foreign key column order")
         check(try await engine.browse(DatabaseObject(name: "child", schema: schema), condition: "a=1 AND label=''").rows.count == 1, "PostgreSQL condition mode uses WHERE predicate")
         await rejects("PostgreSQL condition rejects appended write") { _ = try await engine.browse(DatabaseObject(name: "child", schema: schema), condition: "1=1); DELETE FROM \(schema).child; --") }
-        _ = try await engine.run("CREATE TABLE \(schema).export_source(empty TEXT,nullable TEXT,binary BYTEA,text_value TEXT,n NUMERIC(30,8),b BOOLEAN,u UUID,j JSONB,a INTEGER[],t TIMESTAMP)")
+        _ = try await engine.run("CREATE TABLE \(schema).export_source(empty TEXT,nullable TEXT,payload_binary BYTEA,text_value TEXT,n NUMERIC(30,8),b BOOLEAN,u UUID,j JSONB,a INTEGER[],t TIMESTAMP)")
         _ = try await engine.run("INSERT INTO \(schema).export_source VALUES('',NULL,decode('00ff5c','hex'),E'a''b\\n=SUM(1)',1234567890123456789012.12345678,true,'00000000-0000-0000-0000-000000000001','{\"s\":\"x\"}',ARRAY[1,2],TIMESTAMP '2026-09-08 12:34:56')")
         _ = try await engine.run("CREATE TABLE \(schema).export_copy (LIKE \(schema).export_source INCLUDING ALL)")
         let exported = try await engine.run("SELECT * FROM \(schema).export_source")
