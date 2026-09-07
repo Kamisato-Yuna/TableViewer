@@ -21,6 +21,11 @@ xcrun swiftc -module-cache-path "$test_directory/ModuleCache" \
   "$test_directory/CodeEditor.swift" Tests/EditorUndoIsolationTests.swift \
   -o "$test_directory/EditorUndoIsolationTests"
 "$test_directory/EditorUndoIsolationTests"
+# Uses an independent named pasteboard, never the user's general clipboard.
+xcrun swiftc -module-cache-path "$test_directory/ModuleCache" \
+  "$test_directory/CodeEditor.swift" Tests/EditorUndoRoutingTests.swift \
+  -o "$test_directory/EditorUndoRoutingTests"
+"$test_directory/EditorUndoRoutingTests"
 cat > "$test_directory/Bridge.h" <<'HEADER'
 #include <sqlite3.h>
 #include <libpq-fe.h>
