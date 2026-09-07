@@ -64,7 +64,7 @@ enum AgentApprovalMode: String, Codable, CaseIterable, Identifiable {
         // permissions even for SELECT (functions and CTEs may write).
         if kind == .mongodb {
             guard let object = try? jsonObject(query), object.count > 0 else { return false }
-            return object.keys.contains("find") || object.keys.contains("count") || object.keys.contains("distinct")
+            return query.range(of: #"^\s*\{\s*"(?:find|count|distinct)"\s*:"#, options: .regularExpression) != nil
         }
         let words = query.uppercased().split { !$0.isLetter && $0 != "_" }
         guard let first = words.first, ["SELECT", "WITH", "VALUES", "SHOW", "EXPLAIN"].contains(String(first)) else { return false }

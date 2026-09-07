@@ -52,6 +52,9 @@ actor ControlledCompletion {
         try check(!AgentApprovalMode.automatic.permitsAutomaticExecution(question, kind: .sqlite), "automatic never answers for the user")
         var analyze = action; analyze.call.function.arguments = #"{"query":"EXPLAIN ANALYZE DELETE FROM data"}"#
         try check(!AgentApprovalMode.sensitiveOnly.permitsAutomaticExecution(analyze, kind: .postgresql), "EXPLAIN ANALYZE is not an automatic read candidate")
+        var mongo = action
+        mongo.call.function.arguments = try jsonText(["query": #"{"delete":"data","find":"data","deletes":[{"q":{},"limit":0}]}"#])
+        try check(!AgentApprovalMode.sensitiveOnly.permitsAutomaticExecution(mongo, kind: .mongodb), "Mongo approval uses the first command field rather than a decoy read key")
         let session = AgentSession(complete: { _, _, _, _ in AgentMessage(role: "assistant", toolCalls: [queryCall]) })
         session.configuration = AgentConfiguration(baseURL: "http://localhost:1", model: "controlled")
         session.approvalMode = .sensitiveOnly
