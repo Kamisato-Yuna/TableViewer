@@ -41,3 +41,7 @@ GUI 已观察到多语句预估确认、各条结果、失败详情、命名脚�
 Developer ID Application 正式包保持沙箱权限且不包含 get-task-allow。应用与 DMG 公证均获 Accepted，票据装订、Gatekeeper、只读挂载后的包内签名与版本均通过；DMG 更新签名已用包内公钥独立验证。正式 `.app` 在原应用容器启动成功，Studio 常量查询实际返回 42，PostgreSQL 与 MongoDB 测试连接均加载 10 个对象。没有修改已有数据库记录。
 
 上下和左右原生分栏的尺寸调整均通过辅助功能接口验证；自动化鼠标拖动未产生可确认的位移，因此不计为拖动手势实测通过。其余 GUI 与自动测试覆盖范围按上文记录，不以分发验证替代交互验证。
+
+## 线上交付
+
+[PR #19](https://github.com/Kamisato-Yuna/TableViewer/pull/19) 已合并，GPG 签名标签 `v0.4.0` 指向 `7262f1d`。公开 Release 的 DMG 与本地已验收文件逐字节一致，下载后公证票据、Gatekeeper 与更新签名再次验证通过。GitHub Pages 发布工作流成功，产品页下载与 appcast 均指向 0.4.0（5）；桌面、390px 和 320px 宽度检查无横向溢出。
