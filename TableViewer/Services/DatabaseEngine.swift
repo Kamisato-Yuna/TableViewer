@@ -6,7 +6,7 @@ actor DatabaseEngine {
     private var sqlite: OpaquePointer?
     private var postgres: OpaquePointer?
     private var mongo: UnsafeMutableRawPointer?
-    private var profile: ConnectionProfile?
+    private(set) var profile: ConnectionProfile?
     private var scopedURLs: [URL] = []
     static let pageSize = 200
     private let postgresQueryTimeout: TimeInterval
@@ -383,7 +383,7 @@ actor DatabaseEngine {
         return DatabaseFailure(String(cString: error))
     }
 
-    private func sql(_ query: String, parameters: [CellValue] = []) throws -> QueryResult {
+    func sql(_ query: String, parameters: [CellValue] = []) throws -> QueryResult {
         guard !query.contains("\0") else { throw DatabaseFailure(String(localized: "SQL 语句不能包含 NUL 字符。")) }
         if let sqlite { return try sqliteQuery(sqlite, query: query, parameters: parameters) }
         if let postgres { return try postgresQuery(postgres, query: query, parameters: parameters) }
@@ -523,7 +523,7 @@ actor DatabaseEngine {
         return output
     }
 
-    private func mongoCommand(_ command: [String: Any], name: String? = nil, database: String? = nil) throws -> [String: Any] {
+    func mongoCommand(_ command: [String: Any], name: String? = nil, database: String? = nil) throws -> [String: Any] {
         guard let mongo, let profile else { throw DatabaseFailure(String(localized: "MongoDB 未连接。")) }
         // MongoDB requires the command name to be the FIRST BSON element.
         let known = ["ping", "listCollections", "getMore", "find", "update", "insert", "delete", "killCursors"]
