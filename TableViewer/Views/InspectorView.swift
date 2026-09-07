@@ -66,7 +66,7 @@ struct InspectorView: View {
                 Spacer(minLength: 4)
                 Text(column.type.isEmpty ? "TEXT" : column.type.uppercased()).font(.system(size: 8, weight: .medium, design: .monospaced)).foregroundStyle(.tertiary).lineLimit(1)
             }
-            TextField("NULL", text: Binding(get: { value.wrappedValue.isNull ? "" : value.wrappedValue.display }, set: { value.wrappedValue = .text($0) }), axis: .vertical)
+            TextField(value.wrappedValue.isNull ? "NULL" : "", text: Binding(get: { value.wrappedValue.isNull ? "" : value.wrappedValue.display }, set: { value.wrappedValue = .text($0) }), axis: .vertical)
                 .font(.system(size: 12, design: column.isPrimaryKey ? .monospaced : .default))
                 .lineLimit(1...6).textFieldStyle(.plain).padding(10)
                 .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 7))

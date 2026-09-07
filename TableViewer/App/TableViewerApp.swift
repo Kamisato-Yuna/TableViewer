@@ -85,6 +85,11 @@ struct SettingsView: View {
     @ObservedObject var updater: AppUpdater
     @AppStorage("appearance") private var appearance = "system"
     @State private var language = (UserDefaults.standard.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "local.yuna.TableViewer")?["AppleLanguages"] as? [String])?.first ?? "system"
+    @AppStorage("editorFont") private var editorFont = "SF Mono"
+    @AppStorage("editorSize") private var editorSize = 13.0
+    @AppStorage("editorLigatures") private var ligatures = false
+    @AppStorage("editorLineNumbers") private var lineNumbers = true
+    @AppStorage("openInspectorOnSelection") private var openInspector = false
     var body: some View {
         Form {
             Picker("语言 / Language", selection: $language) {
@@ -99,10 +104,17 @@ struct SettingsView: View {
             Text("语言设置将在下次启动时生效。请先保存修改，再退出并重新打开应用。")
                 .font(.caption).foregroundStyle(.secondary)
             Picker("外观", selection: $appearance) { Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark") }
+            Section("编辑器与网格") {
+                TextField("编辑器字体", text: $editorFont)
+                Stepper(String(localized: "字号：") + String(Int(editorSize)), value: $editorSize, in: 10...28)
+                Toggle("字体连字", isOn: $ligatures)
+                Toggle("显示行号", isOn: $lineNumbers)
+                Toggle("选择记录时打开属性栏", isOn: $openInspector)
+            }
             LabeledContent("凭据存储", value: String(localized: "macOS 钥匙串"))
             LabeledContent("每页记录", value: "200")
             LabeledContent("版本", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
             UpdateSettingsSection(updater: updater)
-        }.formStyle(.grouped).frame(width: 560, height: 610)
+        }.formStyle(.grouped).frame(width: 560, height: 720)
     }
 }

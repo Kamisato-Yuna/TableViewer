@@ -36,18 +36,28 @@ struct WorkspaceView: View {
                     .disabled(store.active == nil || store.busy || store.hasChanges).help("刷新 ⌘R")
             }
             ToolbarItem {
+                Button {
+                    guard !store.hasChanges && !store.busy else { return }
+                    store.readOnly.toggle()
+                } label: { Label(store.readOnly ? String(localized: "只读模式") : String(localized: "允许编辑"), systemImage: store.readOnly ? "lock.fill" : "lock.open") }
+                .disabled(store.busy || store.hasChanges)
+                .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? false : store.readOnlyNotice)
+                .popover(isPresented: $store.readOnlyNotice) { Text("只读模式已阻止修改。点击锁按钮可切换模式。").padding(16) }
+            }
+            ToolbarItem {
                 Button { withAnimation(reduceMotion ? nil : .smooth(duration: 0.26)) { store.showInspector.toggle() } } label: { Label("记录详情", systemImage: "sidebar.right") }
                     .help("显示记录详情")
             }
         }
         .sheet(isPresented: $store.showConnectionSheet) { ConnectionSheet(store: store, existing: store.editingProfile) }
+        .sheet(isPresented: $store.showCellEditor) { CellEditorSheet(store: store) }
         .sheet(isPresented: $store.showInsert) { InsertSheet(store: store) }
         .alert("操作未完成", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("好", role: .cancel) { store.error = nil }
         } message: { Text(store.error ?? "") }
-        .confirmationDialog("删除这条记录？", isPresented: $store.showDelete, titleVisibility: .visible) {
+        .confirmationDialog("删除选中的记录？", isPresented: $store.showDelete, titleVisibility: .visible) {
             Button("删除记录", role: .destructive) { Task { await store.deleteRow() } }
-        } message: { Text("将从 \(store.selectedObject?.name ?? String(localized: "数据库")) 中永久删除这条记录，此操作无法撤销。") }
+        } message: { Text(String(localized: "所选记录将永久删除，按顺序执行；失败时停止，先前删除不会自动撤销。记录数：") + String(store.selectedRowIDs.count)) }
         .confirmationDialog("移除连接？", isPresented: Binding(get: { store.removingProfile != nil }, set: { if !$0 { store.removingProfile = nil } }), titleVisibility: .visible) {
             if let profile = store.removingProfile { Button("移除连接", role: .destructive) { Task { await store.removeConnection(profile) } } }
         } message: { Text("仅移除保存的连接与凭据，数据库文件和数据会保留。") }
@@ -68,7 +78,7 @@ struct WorkspaceView: View {
                 Spacer(minLength: 6)
                 Picker("内容", selection: Binding(get: { store.tab }, set: { value in if store.allowNavigation() { store.tab = value; store.rowSearch = ""; if value == .data { Task { await store.refresh() } } } })) {
                     ForEach(WorkspaceTab.basic, id: \.self) { Text($0.title).tag($0) }
-                }.pickerStyle(.segmented).frame(width: 190).disabled(store.busy).opacity(WorkspaceTab.basic.contains(store.tab) ? 1 : 0).allowsHitTesting(WorkspaceTab.basic.contains(store.tab))
+                }.pickerStyle(.segmented).labelsHidden().frame(width: 190).disabled(store.busy).opacity(WorkspaceTab.basic.contains(store.tab) ? 1 : 0).allowsHitTesting(WorkspaceTab.basic.contains(store.tab))
             }.padding(.horizontal, 24).padding(.vertical, 22)
             Divider()
             if store.tab == .structure { StructureView(store: store) }
@@ -86,23 +96,29 @@ struct WorkspaceView: View {
 
     private var tableActions: some View {
         HStack(spacing: 12) {
-            Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
-            TextField("筛选当前页…", text: $store.rowSearch)
+            Menu {
+                Button("关键词（当前页）") { store.filterIsCondition = false }
+                Button(store.active?.kind == .mongodb ? "JSON 条件" : "WHERE 条件") { store.filterIsCondition = true }
+            } label: { Image(systemName: "line.3.horizontal.decrease") }
+            TextField(store.filterIsCondition ? (store.active?.kind == .mongodb ? "{ \"id\": 1 }" : "id = 1") : String(localized: "筛选当前页…"), text: store.filterIsCondition ? $store.condition : $store.rowSearch)
                 .textFieldStyle(.plain).font(.system(size: 12)).frame(maxWidth: 220)
                 .accessibilityLabel("筛选当前页")
+            if store.filterIsCondition { Button("应用条件") { Task { await store.applyCondition() } }.disabled(store.busy || store.hasChanges) }
             if !store.rowSearch.isEmpty { Button { store.rowSearch = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.secondary) }
             Spacer()
             Text("\(store.result.columns.count) 个字段").font(.system(size: 11)).foregroundStyle(.tertiary)
             Divider().frame(height: 14)
-            Button { store.exportCSV() } label: { Label("导出", systemImage: "square.and.arrow.up") }.disabled(store.result.columns.isEmpty)
+            ExportMenu(store: store)
+            Button { Task { await store.refresh() } } label: { Image(systemName: "arrow.clockwise") }.help("刷新").disabled(store.busy || store.hasChanges)
+            Button(role: .destructive) { store.showDelete = true } label: { Image(systemName: "trash") }.help("删除所选行").disabled(!store.canEdit || store.selectedRowIDs.isEmpty || store.busy || store.hasChanges)
             Button { store.showInsert = true } label: { Label("添加记录", systemImage: "plus") }
-                .disabled(store.selectedObject == nil || store.selectedObject?.isView == true || store.busy || store.hasChanges)
+                .disabled(store.readOnly || store.selectedObject == nil || store.selectedObject?.isView == true || store.busy || store.hasChanges)
         }.buttonStyle(.borderless).controlSize(.small).padding(.horizontal, 24).frame(height: 48)
     }
 
     private var dataGrid: some View {
         ZStack {
-            DataGrid(columns: store.result.columns, rows: store.visibleRows, selectedID: store.selectedRowID, sortColumn: store.sortColumn, ascending: store.sortAscending, selection: { store.selectRow($0) }, sort: { col in Task { await store.sort(by: col) } }, doubleClick: { store.showInspector = true })
+            DataGrid(columns: store.result.columns, rows: store.visibleRows, selectedID: store.selectedRowID, sortColumn: store.sortColumn, ascending: store.sortAscending, selection: { store.selectRow($0) }, sort: { col in Task { await store.sort(by: col) } }, doubleClick: {}, selectedIDs: store.selectedRowIDs, selectionChanged: { store.selectRows($0) }, editCell: { store.editCell(rowID: $0, column: $1) })
             if store.visibleRows.isEmpty && !store.busy {
                 ContentUnavailableView(store.rowSearch.isEmpty ? String(localized: "还没有记录") : String(localized: "没有匹配的记录"), systemImage: store.rowSearch.isEmpty ? "tray" : "line.3.horizontal.decrease", description: Text(store.rowSearch.isEmpty ? String(localized: "添加一条记录，或在查询工作台中开始探索。") : String(localized: "试试其他关键词；筛选仅作用于当前页。")))
             }
@@ -189,6 +205,7 @@ struct SidebarView: View {
                     }
                 } header: { Text("连接").font(.system(size: 10, weight: .semibold)).tracking(1) }
                 Section("Agent") {
+                    Button { store.newAgentSession() } label: { Label("新会话", systemImage: "square.and.pencil") }.buttonStyle(.plain)
                     Button { store.openAgentHistory() } label: {
                         Label("所有会话", systemImage: "bubble.left.and.bubble.right").font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                     }.buttonStyle(.plain)
@@ -196,6 +213,11 @@ struct SidebarView: View {
                     if store.agentLibrary.needsAttentionCount > 0 { Text("\(store.agentLibrary.needsAttentionCount) 个会话等待处理").font(.system(size: 10)).foregroundStyle(.secondary) }
                 }
                 if store.active != nil {
+                    Section("最近 10 个脚本") {
+                        ForEach(Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))) { script in
+                            Button(script.name) { store.openScript(script.id) }.buttonStyle(.plain).lineLimit(1)
+                        }
+                    }
                     Section("工作台") {
                         workspaceLink(.query)
                         if store.active?.kind == .mongodb { workspaceLink(.shell); workspaceLink(.replica) }

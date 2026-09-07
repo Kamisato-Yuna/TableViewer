@@ -39,7 +39,26 @@ struct ShellEntry: Identifiable {
     var objectSearch = ""
     var rowSearch = ""
     var tab = WorkspaceTab.data
-    var query = "SELECT * FROM projects\nWHERE status = '进行中'\nORDER BY updated_at DESC;"
+    var query = "" { didSet { if let selectedScriptID { do { try scripts.save(selectedScriptID, text: query) } catch { report(error) } } } }
+    let scripts = ScriptLibrary()
+    var selectedScriptID: UUID?
+    var querySelection = NSRange(location: 0, length: 0)
+    var statementResults: [StatementResult] = []
+    var selectedResultIndex = 0
+    var queryFailure: String?
+    var showScripts = false
+    var showScriptName = false
+    var renamingScriptID: UUID?
+    var scriptName = ""
+    var readOnly = false
+    var selectedRowIDs = Set<UUID>()
+    var readOnlyNotice = false
+    var filterIsCondition = false
+    var condition = ""
+    var appliedCondition = ""
+    var estimates: [QueryEstimate] = []
+    var pendingQuery: String?
+    var showQueryApproval = false
     var queryResult = QueryResult()
     var queryHasRun = false
     var queryHistory: [String] = []
@@ -51,9 +70,11 @@ struct ShellEntry: Identifiable {
     var error: String?
     var showConnectionSheet = false
     var editingProfile: ConnectionProfile?
-    var showInspector = true
+    var showInspector = false
     var showInsert = false
     var showDelete = false
+    var editingCellIndex: Int?
+    var showCellEditor = false
     var removingProfile: ConnectionProfile?
     var didStart = false
     var replicaSnapshot: ReplicaSnapshot?
@@ -112,7 +133,7 @@ struct ShellEntry: Identifiable {
         if let historyError = agentLibrary.persistenceError { return historyError }
         return nil
     }
-    var canEdit: Bool { selectedObject != nil && selectedObject?.isView == false && (active?.kind == .mongodb || result.columns.contains(where: \.isPrimaryKey)) }
+    var canEdit: Bool { !readOnly && selectedObject != nil && selectedObject?.isView == false && (active?.kind == .mongodb || result.columns.contains(where: \.isPrimaryKey)) }
     var visibleObjects: [DatabaseObject] { objectSearch.isEmpty ? objects : objects.filter { $0.name.localizedCaseInsensitiveContains(objectSearch) || $0.schema.localizedCaseInsensitiveContains(objectSearch) } }
     var displayedResult: QueryResult { tab == .query ? queryResult : result }
     var visibleRows: [DataRow] {
@@ -122,6 +143,10 @@ struct ShellEntry: Identifiable {
 
     func start() async {
         guard !didStart else { return }; didStart = true
+        if UserDefaults.standard.bool(forKey: "scriptAutoCleanup") {
+            do { try scripts.delete(Set(scripts.unused(days: UserDefaults.standard.integer(forKey: "scriptCleanupDays") == 0 ? 90 : UserDefaults.standard.integer(forKey: "scriptCleanupDays")).map(\.id))) }
+            catch { report(error) }
+        }
         var loadFailure: Error?
         do { profiles = try LocalWorkspace.loadProfiles() }
         catch { loadFailure = error }
@@ -158,7 +183,7 @@ struct ShellEntry: Identifiable {
         }
         await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = profile.database
         replicaSnapshot = nil; replicaError = nil
-        queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""
+        selectedScriptID = nil; queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""
         do {
             let loaded = try await engine.connect(profile, secret: credential)
             active = profile; objects = loaded
@@ -167,10 +192,8 @@ struct ShellEntry: Identifiable {
             page = 0; sortColumn = nil; rowSearch = ""; objectSearch = ""; tab = .data
             queryResult = QueryResult(); queryHasRun = false; queryHistory = []
             query = profile.kind == .mongodb ? "{\n  \"find\": \"\(loaded.first?.name ?? "collection")\",\n  \"filter\": {},\n  \"limit\": 100\n}" : "SELECT * FROM \(loaded.first?.qualifiedName ?? "table_name") LIMIT 100;"
-            if let first = loaded.first(where: { $0.name == "projects" }) ?? loaded.first {
-                selectedObject = first
-                result = try await engine.browse(first)
-                selectRow(result.rows.first?.id)
+            if let script = scripts.scripts.first(where: { $0.connectionID == profile.id && $0.isOpen }) {
+                query = try scripts.open(script.id); selectedScriptID = script.id
             }
             status = String(localized: "已连接")
         } catch {
@@ -184,7 +207,7 @@ struct ShellEntry: Identifiable {
     func chooseObject(_ object: DatabaseObject) async {
         guard allowNavigation() else { return }
         if selectedObject == object { tab = .data; return }
-        selectedObject = object; page = 0; sortColumn = nil; rowSearch = ""; tab = .data
+        selectedObject = object; appliedCondition = ""; condition = ""; page = 0; sortColumn = nil; rowSearch = ""; tab = .data
         await refresh()
     }
 
@@ -195,7 +218,12 @@ struct ShellEntry: Identifiable {
         do {
             if reloadObjects { objects = try await engine.objects() }
             if let selectedObject {
-                result = try await engine.browse(selectedObject, page: page, sort: sortColumn, ascending: sortAscending)
+                let estimateSQL = active?.kind == .mongodb ? "{\"find\": " + (try jsonText(selectedObject.name)) + ", \"filter\": " + (appliedCondition.isEmpty ? "{}" : appliedCondition) + "}" : "SELECT * FROM " + selectedObject.qualifiedName + (appliedCondition.isEmpty ? "" : " WHERE (" + appliedCondition + ")")
+                let estimate = await engine.estimate(estimateSQL)
+                if estimate.severity == .large || estimate.severity == .excessive {
+                    guard await confirmEstimate(estimate) else { status = String(localized: "已取消"); return false }
+                }
+                result = try await engine.browse(selectedObject, page: page, sort: sortColumn, ascending: sortAscending, condition: appliedCondition)
                 selectRow(result.rows.first?.id)
             }
             status = String(localized: "已刷新")
@@ -206,6 +234,8 @@ struct ShellEntry: Identifiable {
     func selectRow(_ id: UUID?) {
         if hasChanges, id != selectedRowID { error = String(localized: "请先保存或撤销当前记录的修改。"); return }
         selectedRowID = id
+        selectedRowIDs = id.map { [$0] } ?? []
+        if UserDefaults.standard.bool(forKey: "openInspectorOnSelection") && id != nil { showInspector = true }
         draft = selectedRow?.cells ?? []
         documentDraft = selectedRow?.document ?? ""
     }
@@ -259,7 +289,7 @@ struct ShellEntry: Identifiable {
     }
 
     func insert(fields: [(String, CellValue)], document: String?) async -> Bool {
-        guard !busy, let selectedObject else { return false }
+        guard !readOnly, !busy, let selectedObject else { return false }
         busy = true
         do {
             try await engine.insert(selectedObject, fields: fields, document: document)
@@ -267,26 +297,106 @@ struct ShellEntry: Identifiable {
         } catch { busy = false; report(error); return false }
     }
 
+    func editCell(rowID: UUID, column: Int) {
+        if readOnly { readOnlyNotice = true; return }
+        guard !busy, canEdit, result.columns.indices.contains(column), result.columns[column].isEditable, !result.columns[column].isPrimaryKey else { return }
+        selectRow(rowID)
+        guard selectedRowID == rowID, let row = selectedRow, row.cells.indices.contains(column) else { return }
+        if case .blob = row.cells[column] { return }
+        editingCellIndex = column; showCellEditor = true
+    }
+    func selectRows(_ ids: Set<UUID>) {
+        if hasChanges && !ids.contains(selectedRowID ?? UUID()) { return }
+        let primary = selectedRowID.flatMap { ids.contains($0) ? $0 : nil } ?? result.rows.first(where: { ids.contains($0.id) })?.id
+        selectRow(primary); selectedRowIDs = ids
+    }
     func deleteRow() async {
-        guard !busy, canEdit, let selectedObject, let selectedRow else { return }
-        busy = true
+        guard !busy, canEdit, let selectedObject else { return }
+        let rows = result.rows.filter { selectedRowIDs.contains($0.id) || (selectedRowIDs.isEmpty && $0.id == selectedRowID) }
+        busy = true; var deleted = 0
         do {
-            try await engine.delete(selectedObject, columns: result.columns, row: selectedRow)
-            discard(); busy = false; status = await refresh() ? String(localized: "记录已删除") : String(localized: "记录已删除，但刷新失败")
-        } catch { busy = false; report(error) }
+            for row in rows { try await engine.delete(selectedObject, columns: result.columns, row: row); deleted += 1 }
+            discard(); busy = false; _ = await refresh()
+            status = String(localized: "已删除记录数：") + String(deleted)
+        } catch {
+            busy = false
+            report(DatabaseFailure(String(localized: "已删除记录数：") + String(deleted) + "\n" + error.localizedDescription))
+        }
+    }
+    func applyCondition() async {
+        guard allowNavigation() else { return }
+        let alert = NSAlert(); alert.messageText = String(localized: "执行条件筛选？")
+        alert.informativeText = active?.kind == .mongodb ? condition : "WHERE " + condition
+        alert.addButton(withTitle: String(localized: "取消")); alert.addButton(withTitle: String(localized: "执行"))
+        guard alert.runModal() == .alertSecondButtonReturn else { return }
+        appliedCondition = condition; page = 0; _ = await refresh()
+    }
+    func confirmEstimate(_ estimate: QueryEstimate) async -> Bool {
+        let alert = NSAlert(); alert.messageText = String(localized: "执行前规模预估")
+        alert.informativeText = estimate.summary + "\n" + String(estimate.details.prefix(900))
+        alert.alertStyle = estimate.severity == .excessive ? .critical : .warning
+        alert.addButton(withTitle: String(localized: "取消")); alert.addButton(withTitle: String(localized: "继续执行"))
+        guard let window = NSApp.keyWindow else { return false }
+        return await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { continuation.resume(returning: $0 == .alertSecondButtonReturn) }
+        }
     }
 
-    func runQuery() async {
-        guard allowNavigation(), active != nil, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    var openScripts: [SavedScript] { scripts.scripts.filter { $0.connectionID == active?.id && $0.isOpen } }
+    func openScript(_ id: UUID) {
+        guard allowNavigation(), scripts.scripts.first(where: { $0.id == id })?.connectionID == active?.id else { return }
+        do {
+            let text = try scripts.open(id)
+            selectedScriptID = nil; query = text; selectedScriptID = id
+            querySelection = NSRange(location: 0, length: 0); tab = .query
+            statementResults = []; queryResult = QueryResult(); queryHasRun = false; queryFailure = nil
+        } catch { report(error) }
+    }
+    func nameScript(_ id: UUID? = nil) {
+        guard allowNavigation() else { return }
+        renamingScriptID = id; scriptName = scripts.scripts.first(where: { $0.id == id })?.name ?? ""; showScriptName = true
+    }
+    func saveScriptName() {
+        guard let active else { return }
+        do {
+            if let id = renamingScriptID { try scripts.rename(id, name: scriptName) }
+            else { let id = try scripts.create(name: scriptName, connectionID: active.id); openScript(id) }
+            showScriptName = false
+        } catch { report(error) }
+    }
+    func runQuery(approved: Bool = false) async {
+        guard allowNavigation(), let active else { return }
+        let source = query as NSString
+        let selected = querySelection.length > 0 && NSMaxRange(querySelection) <= source.length ? source.substring(with: querySelection) : query
+        let sql = approved ? pendingQuery ?? selected : selected
+        guard !sql.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         busy = true; status = String(localized: "执行查询…")
         defer { busy = false }
         do {
-            queryResult = try await engine.run(query)
-            queryHasRun = true; rowSearch = ""
-            if queryHistory.first != query { queryHistory.insert(query, at: 0); queryHistory = Array(queryHistory.prefix(20)) }
+            let statements = try SQLScript.statements(sql, kind: active.kind)
+            if !approved {
+                estimates = []
+                for statement in statements { estimates.append(await engine.estimate(statement)) }
+                if estimates.contains(where: { $0.severity != .normal }) { pendingQuery = sql; showQueryApproval = true; return }
+            }
+            pendingQuery = nil; queryFailure = nil; statementResults = []; selectedResultIndex = 0
+            for statement in statements {
+                do {
+                    let result = try await engine.run(statement, readOnly: readOnly)
+                    statementResults.append(StatementResult(statement: statement, result: result))
+                } catch {
+                    statementResults.append(StatementResult(statement: statement, failure: error.localizedDescription))
+                    queryFailure = error.localizedDescription; break
+                }
+            }
+            queryResult = statementResults.first?.result ?? QueryResult(); queryHasRun = !statementResults.isEmpty; rowSearch = ""
+            if selectedScriptID == nil {
+                let id = try scripts.create(name: String(localized: "查询") + " " + Date().formatted(date: .omitted, time: .shortened), connectionID: active.id, text: query)
+                selectedScriptID = id
+            }
             objects = try await engine.objects()
-            status = String(localized: "查询完成 · \(queryResult.affectedRows) 行受影响")
-        } catch { queryResult = QueryResult(); queryHasRun = false; report(error) }
+            status = queryFailure == nil ? String(localized: "查询完成") : String(localized: "执行失败，后续语句未运行；先前自动提交的写入不会回滚。")
+        } catch { queryFailure = error.localizedDescription; status = String(localized: "操作未完成") }
     }
 
     func changePage(_ delta: Int) async { guard allowNavigation() else { return }; page = max(0, page + delta); await refresh() }
@@ -335,6 +445,8 @@ struct ShellEntry: Identifiable {
 
     func runShell() async {
         guard allowNavigation(), let active, active.kind == .mongodb else { return }
+        guard !readOnly else { readOnlyNotice = true; return }
+        guard await confirmEstimate(QueryEstimate(severity: .unknown, summary: String(localized: "Shell 可运行任意 JavaScript，无法在不执行的情况下可靠预估；请确认范围。"))) else { return }
         let command = shellInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { return }
         if command == "clear" || command == "cls" { shellEntries = []; shellInput = ""; return }
@@ -373,18 +485,19 @@ struct ShellEntry: Identifiable {
         } catch { session.resolve(id, output: String(localized: "操作失败：") + error.localizedDescription, failed: true) }
     }
 
-    func exportCSV() {
-        let result = displayedResult
-        guard !result.columns.isEmpty else { return }
+    func exportCSV() { exportResult(.csv) }
+    func exportResult(_ format: ResultExportFormat, dialect: ResultSQLDialect = .sqlite) {
+        var exported = displayedResult
+        exported.rows = visibleRows
+        guard !exported.columns.isEmpty else { return }
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = (selectedObject?.name ?? "query") + ".csv"
+        panel.allowedContentTypes = [UTType(filenameExtension: format.fileExtension) ?? .plainText]
+        panel.nameFieldStringValue = (selectedObject?.name ?? "query") + "." + format.fileExtension
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            func escape(_ value: String) -> String { "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
-            let lines = [result.columns.map { escape($0.name) }.joined(separator: ",")] + visibleRows.map { $0.cells.map { $0.isNull ? "" : escape($0.display) }.joined(separator: ",") }
-            try (lines.joined(separator: "\r\n") + "\r\n").write(to: url, atomically: true, encoding: .utf8)
-            status = String(localized: "已导出当前结果 · \(visibleRows.count) 行")
+            let text = try ResultExporter(format: format, sourceKind: active?.kind ?? .sqlite, sqlDialect: dialect, table: selectedObject ?? DatabaseObject(name: "query_result")).encode(exported)
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            status = String(localized: "已导出当前结果 · \(exported.rows.count) 行")
         } catch { report(error) }
     }
 }
