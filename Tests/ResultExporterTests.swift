@@ -18,7 +18,7 @@ import SQLite3
         precondition(tryJSON(yaml) != nil) // JSON syntax is also valid YAML 1.2.
         let txt = try ResultExporter(format: .txt, sourceKind: .sqlite).encode(result)
         precondition(txt.hasPrefix("\"c0\"\t\"c1\"") && txt.contains("\\N\t\"\""))
-        let pgBinary = QueryResult(columns: [.init(name: "b", type: "17")], rows: [.init(cells: [.text("\\x00ff5c")]), .init(cells: [.text("\\000\\377\\\\")])])
+        let pgBinary = QueryResult(columns: [.init(name: "b", type: "OID 17")], rows: [.init(cells: [.text("\\x00ff5c")]), .init(cells: [.text("\\000\\377\\\\")])])
         let binaryJSON = try ResultExporter(format: .json, sourceKind: .postgresql).encode(pgBinary)
         let binaryRows = (try JSONSerialization.jsonObject(with: Data(binaryJSON.utf8)) as! [String: Any])["rows"] as! [[[String: String]]]
         precondition(binaryRows[0][0]["base64"] == "AP9c" && binaryRows[1][0]["base64"] == "AP9c")

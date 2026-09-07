@@ -28,7 +28,7 @@ struct ResultExporter {
         // Decode only that type, never infer binary/numeric types from arbitrary text.
         if sourceKind == .postgresql {
             for row in result.rows.indices {
-                for column in result.columns.indices where ["17", "bytea"].contains(result.columns[column].type.lowercased()) {
+                for column in result.columns.indices where ["17", "oid 17", "bytea"].contains(result.columns[column].type.lowercased()) {
                     if case .text(let value) = result.rows[row].cells[column] {
                         result.rows[row].cells[column] = .blob(try postgresBinary(value))
                     }
