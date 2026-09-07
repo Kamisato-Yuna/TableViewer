@@ -8308,6 +8308,1718 @@
           }
         }
       }
+    },
+    "MongoDB 单元格使用 JSON 值，字符串需要双引号；此处仅更新所选字段。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a JSON value for this MongoDB field. Strings require double quotes. Only the selected field will be updated."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB 单元格使用 JSON 值，字符串需要双引号；此处仅更新所选字段。"
+          }
+        }
+      }
+    },
+    "值": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Value"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "值"
+          }
+        }
+      }
+    },
+    "JSON 值": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JSON Value"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JSON 值"
+          }
+        }
+      }
+    },
+    "查询计划包含多处扫描，可能产生大量工作。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The query plan includes multiple scans and may require substantial work."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查询计划包含多处扫描，可能产生大量工作。"
+          }
+        }
+      }
+    },
+    "查询计划包含扫描；SQLite 不提供可靠的预计行数。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The query plan includes a scan. SQLite does not provide a reliable row estimate."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查询计划包含扫描；SQLite 不提供可靠的预计行数。"
+          }
+        }
+      }
+    },
+    "SQLite 计划不提供可靠行数；索引访问仍可能很大。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SQLite does not provide a reliable row estimate. Index access can still involve substantial work."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SQLite 计划不提供可靠行数；索引访问仍可能很大。"
+          }
+        }
+      }
+    },
+    "此命令无法预估规模；执行前请核对。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The scope of this command cannot be estimated. Review it before running."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此命令无法预估规模；执行前请核对。"
+          }
+        }
+      }
+    },
+    "计划估算最大节点行数：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Largest estimated row count in the plan: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "计划估算最大节点行数："
+          }
+        }
+      }
+    },
+    "；成本：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "; cost: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "；成本："
+          }
+        }
+      }
+    },
+    "MongoDB queryPlanner 未执行查询，不提供可靠工作量；请检查扫描计划。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB queryPlanner has not run the query and cannot reliably estimate the workload. Review the scan plan."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB queryPlanner 未执行查询，不提供可靠工作量；请检查扫描计划。"
+          }
+        }
+      }
+    },
+    "此入口没有可靠的无执行估算；请确认操作范围。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A reliable estimate is unavailable without running this operation. Confirm its scope before continuing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此入口没有可靠的无执行估算；请确认操作范围。"
+          }
+        }
+      }
+    },
+    "无法取得执行前估算。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A pre-execution estimate could not be obtained."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法取得执行前估算。"
+          }
+        }
+      }
+    },
+    "新建脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Script"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建脚本"
+          }
+        }
+      }
+    },
+    "重命名脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Script"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名脚本"
+          }
+        }
+      }
+    },
+    "新建命名脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a Named Script"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建命名脚本"
+          }
+        }
+      }
+    },
+    "全部本地脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Local Scripts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部本地脚本"
+          }
+        }
+      }
+    },
+    "切换上下或左右分栏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch Between Stacked and Side-by-Side Layouts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换上下或左右分栏"
+          }
+        }
+      }
+    },
+    "重命名…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名…"
+          }
+        }
+      }
+    },
+    "关闭脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close Script"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭脚本"
+          }
+        }
+      }
+    },
+    "脚本名称": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Script Name"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本名称"
+          }
+        }
+      }
+    },
+    "执行前规模预估": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review Execution Estimate"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行前规模预估"
+          }
+        }
+      }
+    },
+    "估算不保证运行时间。首次失败停止；先前自动提交的写入不会回滚，显式事务由数据库处理。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimates do not guarantee runtime. Execution stops at the first failure. Earlier auto-committed writes will not be rolled back; the database handles explicit transactions."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "估算不保证运行时间。首次失败停止；先前自动提交的写入不会回滚，显式事务由数据库处理。"
+          }
+        }
+      }
+    },
+    "语句": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statement"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语句"
+          }
+        }
+      }
+    },
+    "计划详情": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan Details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "计划详情"
+          }
+        }
+      }
+    },
+    "继续执行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue Execution"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续执行"
+          }
+        }
+      }
+    },
+    "运行选区": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run Selection"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行选区"
+          }
+        }
+      }
+    },
+    "⌘↵ 运行 · ⌘/ 注释 · ⌘Z 撤销 · ⇧⌘Z 重做": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘↵ Run · ⌘/ Comment · ⌘Z Undo · ⇧⌘Z Redo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘↵ 运行 · ⌘/ 注释 · ⌘Z 撤销 · ⇧⌘Z 重做"
+          }
+        }
+      }
+    },
+    "执行结束": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Execution Finished"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行结束"
+          }
+        }
+      }
+    },
+    "结果": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Results"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果"
+          }
+        }
+      }
+    },
+    "执行失败，后续语句未运行；先前自动提交的写入不会回滚。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Execution failed. Later statements were not run. Earlier auto-committed writes will not be rolled back."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行失败，后续语句未运行；先前自动提交的写入不会回滚。"
+          }
+        }
+      }
+    },
+    "错误详情": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error Details"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "错误详情"
+          }
+        }
+      }
+    },
+    "永久删除所选脚本？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permanently Delete the Selected Scripts?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久删除所选脚本？"
+          }
+        }
+      }
+    },
+    "启用自动清理？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Automatic Cleanup?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用自动清理？"
+          }
+        }
+      }
+    },
+    "脚本内容保存为 .sql，显示名称保存在本地目录索引。关闭选项卡会保留脚本；清理会永久删除文件。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scripts are saved as .sql files, with display names stored in the local catalog. Closing a tab keeps its script. Cleanup permanently deletes the files."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本内容保存为 .sql，显示名称保存在本地目录索引。关闭选项卡会保留脚本；清理会永久删除文件。"
+          }
+        }
+      }
+    },
+    "启动时自动清理未使用且已关闭的脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically clean up unused, closed scripts at startup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启动时自动清理未使用且已关闭的脚本"
+          }
+        }
+      }
+    },
+    "未使用天数：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Days since last use: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未使用天数："
+          }
+        }
+      }
+    },
+    "清理未使用脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clean Up Unused Scripts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理未使用脚本"
+          }
+        }
+      }
+    },
+    "清理全部": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete All Scripts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理全部"
+          }
+        }
+      }
+    },
+    "删除": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除"
+          }
+        }
+      }
+    },
+    "删除后无法撤销，数据库数据不受影响。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This deletion cannot be undone. Database records are not affected."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除后无法撤销，数据库数据不受影响。"
+          }
+        }
+      }
+    },
+    "启用自动清理": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Automatic Cleanup"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用自动清理"
+          }
+        }
+      }
+    },
+    "每次启动会永久删除超过所设未使用天数且已关闭的脚本。可随时关闭；已删除文件无法恢复。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At each startup, closed scripts unused for longer than the selected period will be permanently deleted. You can disable this at any time, but deleted files cannot be restored."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次启动会永久删除超过所设未使用天数且已关闭的脚本。可随时关闭；已删除文件无法恢复。"
+          }
+        }
+      }
+    },
+    "注释": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comment"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注释"
+          }
+        }
+      }
+    },
+    "对象概览": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Object Overview"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对象概览"
+          }
+        }
+      }
+    },
+    "已取消": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canceled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消"
+          }
+        }
+      }
+    },
+    "已删除记录数：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records deleted: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已删除记录数："
+          }
+        }
+      }
+    },
+    "执行条件筛选？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply This Filter Condition?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行条件筛选？"
+          }
+        }
+      }
+    },
+    "执行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "执行"
+          }
+        }
+      }
+    },
+    "查询完成": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Query Complete"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查询完成"
+          }
+        }
+      }
+    },
+    "Shell 可运行任意 JavaScript，无法在不执行的情况下可靠预估；请确认范围。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The shell can run arbitrary JavaScript. Its workload cannot be reliably estimated without execution. Confirm the scope before continuing."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell 可运行任意 JavaScript，无法在不执行的情况下可靠预估；请确认范围。"
+          }
+        }
+      }
+    },
+    "编辑器与网格": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editor and Grid"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑器与网格"
+          }
+        }
+      }
+    },
+    "字号：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font size: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字号："
+          }
+        }
+      }
+    },
+    "编辑器字体": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editor Font"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑器字体"
+          }
+        }
+      }
+    },
+    "字体连字": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font ligatures"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字体连字"
+          }
+        }
+      }
+    },
+    "显示行号": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show line numbers"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示行号"
+          }
+        }
+      }
+    },
+    "选择记录时打开属性栏": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the inspector when selecting a record"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择记录时打开属性栏"
+          }
+        }
+      }
+    },
+    "删除选中的记录？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete the Selected Records?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除选中的记录？"
+          }
+        }
+      }
+    },
+    "只读模式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-Only Mode"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读模式"
+          }
+        }
+      }
+    },
+    "允许编辑": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editing Enabled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许编辑"
+          }
+        }
+      }
+    },
+    "只读模式已阻止修改。点击锁按钮可切换模式。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only mode blocked this change. Click the lock button to switch modes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读模式已阻止修改。点击锁按钮可切换模式。"
+          }
+        }
+      }
+    },
+    "所选记录将永久删除，按顺序执行；失败时停止，先前删除不会自动撤销。记录数：": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected records will be permanently deleted in order. Deletion stops on failure; earlier deletions will not be automatically undone. Record count: "
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选记录将永久删除，按顺序执行；失败时停止，先前删除不会自动撤销。记录数："
+          }
+        }
+      }
+    },
+    "应用条件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply Condition"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用条件"
+          }
+        }
+      }
+    },
+    "删除所选行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Selected Rows"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除所选行"
+          }
+        }
+      }
+    },
+    "关键词（当前页）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyword (Current Page)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关键词（当前页）"
+          }
+        }
+      }
+    },
+    "JSON 条件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JSON Condition"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JSON 条件"
+          }
+        }
+      }
+    },
+    "WHERE 条件": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHERE Condition"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHERE 条件"
+          }
+        }
+      }
+    },
+    "最近 10 个脚本": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 Recent Scripts"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近 10 个脚本"
+          }
+        }
+      }
+    },
+    "关闭": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "SQL 引号、注释或 BEGIN ATOMIC 块未闭合。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An SQL quote, comment, or BEGIN ATOMIC block is not closed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SQL 引号、注释或 BEGIN ATOMIC 块未闭合。"
+          }
+        }
+      }
+    },
+    "脚本名称须为 1–100 个字符。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Script names must contain 1–100 characters."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本名称须为 1–100 个字符。"
+          }
+        }
+      }
+    },
+    "脚本不存在。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The script does not exist."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "脚本不存在。"
+          }
+        }
+      }
+    },
+    "只读查询需要空闲连接；请先结束已有事务。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only queries require an idle connection. Finish the current transaction first."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读查询需要空闲连接；请先结束已有事务。"
+          }
+        }
+      }
+    },
+    "只读模式已阻止此命令。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only mode blocked this command."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读模式已阻止此命令。"
+          }
+        }
+      }
+    },
+    "只读模式已阻止此 MongoDB 命令。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only mode blocked this MongoDB command."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读模式已阻止此 MongoDB 命令。"
+          }
+        }
+      }
+    },
+    "未声明": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not declared"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未声明"
+          }
+        }
+      }
+    },
+    "表达式": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expression"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表达式"
+          }
+        }
+      }
+    },
+    "自动索引": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic index"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动索引"
+          }
+        }
+      }
+    },
+    "结构参考 DDL；不包含所有权、权限、分区、序列参数及存储选项。完整迁移请使用 pg_dump。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reference DDL only. Ownership, permissions, partitioning, sequence parameters and storage options are omitted. Use pg_dump for a complete migration."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结构参考 DDL；不包含所有权、权限、分区、序列参数及存储选项。完整迁移请使用 pg_dump。"
+          }
+        }
+      }
+    },
+    "索引定义（约束自动创建的索引请勿重复执行）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Index definitions (do not recreate indexes generated by constraints)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "索引定义（约束自动创建的索引请勿重复执行）"
+          }
+        }
+      }
+    },
+    "导出结果的列数与数据不一致。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The result's column count does not match its row data."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出结果的列数与数据不一致。"
+          }
+        }
+      }
+    },
+    "MongoDB JSON 导出需要完整的原始文档。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB JSON export requires complete original documents."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB JSON 导出需要完整的原始文档。"
+          }
+        }
+      }
+    },
+    "列名或类型包含 XML 无法表示的字符，请使用 JSON 导出。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A column name or type contains characters that XML cannot represent. Export as JSON instead."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列名或类型包含 XML 无法表示的字符，请使用 JSON 导出。"
+          }
+        }
+      }
+    },
+    "MongoDB 文档不能直接导出为关系数据库 INSERT，请使用 JSON。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB documents cannot be exported directly as relational INSERT statements. Use JSON instead."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB 文档不能直接导出为关系数据库 INSERT，请使用 JSON。"
+          }
+        }
+      }
+    },
+    "INSERT 导出需要目标表名和不重复的有效列名。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "INSERT export requires a target table name and valid, unique column names."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "INSERT 导出需要目标表名和不重复的有效列名。"
+          }
+        }
+      }
+    },
+    "PostgreSQL bytea 数据格式无效。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid PostgreSQL bytea data."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PostgreSQL bytea 数据格式无效。"
+          }
+        }
+      }
+    },
+    "PostgreSQL text 不支持 NUL 字符，无法无损导出该值。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PostgreSQL text does not support NUL characters. This value cannot be exported without data loss."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PostgreSQL text 不支持 NUL 字符，无法无损导出该值。"
+          }
+        }
+      }
+    },
+    "EXTENDED JSON": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXTENDED JSON"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EXTENDED JSON"
+          }
+        }
+      }
+    },
+    "NULL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NULL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NULL"
+          }
+        }
+      }
+    },
+    "INSERT SQL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "INSERT SQL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "INSERT SQL"
+          }
+        }
+      }
+    },
+    "Mongo Shell": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mongo Shell"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mongo Shell"
+          }
+        }
+      }
+    },
+    "%@ ›": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ›"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ›"
+          }
+        }
+      }
+    },
+    "›": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "›"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "›"
+          }
+        }
+      }
+    },
+    "MongoDB JSON": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB JSON"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MongoDB JSON"
+          }
+        }
+      }
+    },
+    "SQL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SQL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SQL"
+          }
+        }
+      }
+    },
+    "Ping": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ping"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ping"
+          }
+        }
+      }
+    },
+    "TableViewer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TableViewer"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TableViewer"
+          }
+        }
+      }
+    },
+    "%@ · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@"
+          }
+        }
+      }
+    },
+    "%@%@  /  %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@%@  /  %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@%@  /  %@"
+          }
+        }
+      }
+    },
+    "·": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "·"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "·"
+          }
+        }
+      }
+    },
+    "Agent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
+    "%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        }
+      }
+    },
+    "inspect_schema": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "inspect_schema"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "inspect_schema"
+          }
+        }
+      }
+    },
+    "OpenAI-compatible · Chat Completions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenAI-compatible · Chat Completions"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenAI-compatible · Chat Completions"
+          }
+        }
+      }
+    },
+    "https://api.example.com/v1": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://api.example.com/v1"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://api.example.com/v1"
+          }
+        }
+      }
+    },
+    "Base URL": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base URL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base URL"
+          }
+        }
+      }
+    },
+    "API Key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API Key"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API Key"
+          }
+        }
+      }
+    },
+    "TLS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TLS"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TLS"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
