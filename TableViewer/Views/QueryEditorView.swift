@@ -7,6 +7,7 @@ struct QueryEditorView: View {
     @State private var showRunHint = false
     var body: some View {
         VStack(spacing: 0) {
+            GlassEffectContainer(spacing: 6) {
             HStack(spacing: 8) {
                 ScrollViewReader { proxy in
                 ScrollView(.horizontal) {
@@ -23,7 +24,7 @@ struct QueryEditorView: View {
                                 Divider().frame(height: 18)
                             }
                         }
-                    }.padding(.top, 6)
+                    }.padding(.vertical, 6)
                 }.scrollIndicators(.hidden)
                     .onChange(of: store.selectedScriptID, initial: true) { _, id in
                         if let id { proxy.scrollTo(id, anchor: .center) }
@@ -46,8 +47,8 @@ struct QueryEditorView: View {
                 Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1").frame(width: 18, height: 16) }.help("切换上下或左右分栏")
             }.buttonStyle(.plain).tint(.primary).controlSize(.regular)
                 .font(.system(size: 12, weight: .medium))
-                .padding(.horizontal, 12)
-                .background(.bar)
+                .padding(.horizontal, 4)
+            }
             if store.selectedScriptID == nil {
                 ContentUnavailableView {
                     Label("新建命名脚本", systemImage: "doc.badge.plus")
@@ -72,6 +73,10 @@ struct QueryEditorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(12)
         .onAppear { if store.selectedScriptID == nil { store.nameScript() } }
         .alert(store.renamingScriptID == nil ? String(localized: "新建脚本") : String(localized: "重命名脚本"), isPresented: $store.showScriptName) {
             TextField("脚本名称", text: $store.scriptName)
@@ -131,7 +136,6 @@ struct QueryEditorView: View {
                     .buttonStyle(.glassProminent).controlSize(.small).disabled(store.busy || store.query.isEmpty)
 
             }.padding(.horizontal, 12).padding(.vertical, 8)
-                .background(.bar)
             if store.showSlowQuerySuggestion {
                 HStack {
                     Text("查询已超过 5 秒，可开启查询前预估。").font(.caption)
@@ -218,12 +222,7 @@ private struct ScriptTabItem: View {
         .buttonStyle(.plain).focused($focus, equals: .title).help(title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: Text("关闭脚本")) { if canClose { close() } }
-        .background {
-            if isSelected {
-                UnevenRoundedRectangle(topLeadingRadius: 8, topTrailingRadius: 8)
-                    .fill(.regularMaterial)
-            }
-        }
+        .glassEffect(isSelected ? .regular : .identity, in: RoundedRectangle(cornerRadius: 10))
         .overlay(alignment: .trailing) {
             if showsClose {
                 Button(action: close) {
