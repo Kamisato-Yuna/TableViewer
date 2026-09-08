@@ -33,4 +33,9 @@
 - 最终包派生独立 bundle `local.yuna.TableViewer.Release053Build10QA` 实际启动：两份 SQLite 合成脚本分别返回 53/10 与 99，A/B/A 切换恢复原结果；上下/左右分栏、深浅色、设置按编辑器上下文打开、字号 16 与行号同步、Escape 返回工作台、侧栏标题顶部和空提示居中通过。标签溢出原生测试覆盖 30 个长标签、窄视口、首尾选择、关闭恢复和两侧离屏命中。用户对最终标签观感的验收保留，不声称与 Finder 完全相同。
 - 最终应用 Apple 公证 Accepted：`f13312a8-9998-4e34-af44-01039992e337`；stapler 与 Gatekeeper 通过。
 - 最终 DMG Apple 公证 Accepted：`39c86a27-d4e9-440c-be79-54c8abcc7e6c`；stapler 与 Gatekeeper 通过。DMG 为 10,272,966 字节，Sparkle 使用既有 Ed25519 密钥签名，更新版本 10。
-- 正式发布与公开下载验证待附件发布后回写。
+- [PR #33](https://github.com/Kamisato-Yuna/TableViewer/pull/33) 已合并；签名标签 `v0.5.3` 指向 `2b7e1cae42455a5d9b5ecfef30ec1cf1cfd4b6b5`，合并树与已验收构建源码相同。GitHub 验证标签 GPG 签名有效。Issues #31、#32、#34 已关闭。
+- [正式 Release](https://github.com/Kamisato-Yuna/TableViewer/releases/tag/v0.5.3) 已公开并为 latest，DMG 10,272,966 字节、appcast 1,130 字节，均为 uploaded；旧版本标签和附件保留。
+- 从未认证公网完整下载 DMG，与本地逐字节相同；Release 和 [Pages appcast](https://kamisato-yuna.github.io/TableViewer/appcast.xml) 均与本地逐字节相同。使用应用内既有公钥独立验证下载包 Ed25519 签名通过。
+- 公开下载 DMG 的 stapler/Gatekeeper 通过；只读挂载后的应用深度严格签名、stapler/Gatekeeper 通过，版本 0.5.3（10）、Applications 链接及可执行文件与最终构建一致。没有用下载包替换用户真实安装与连接。
+- 最终 PR CI `34254252558`、main CI `34254532156`、Pages 部署 `34254676209` 均成功。产品页面显示 0.5.3 和正确 DMG 下载路径；首次部署缓存更新后，普通 appcast 地址也已一致。
+- 最终包的 en/zh-Hans 签名沙箱资源探针、示例显隐与最后连接恢复回归全部通过；实际历史窗口显示两份合成脚本，入口正常。
