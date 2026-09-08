@@ -10396,6 +10396,12 @@
             "state": "translated",
             "value": "Database added. You can hide the demo database."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已添加数据库，可以隐藏示例数据库。"
+          }
         }
       }
     },
@@ -10405,6 +10411,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hide Demo Database"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏示例数据库"
           }
         }
       }
@@ -10416,6 +10428,12 @@
             "state": "translated",
             "value": "Keep Showing"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续显示"
+          }
         }
       }
     },
@@ -10425,6 +10443,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show Demo Database"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示示例数据库"
           }
         }
       }
