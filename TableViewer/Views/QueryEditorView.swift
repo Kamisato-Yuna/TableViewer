@@ -6,7 +6,41 @@ struct QueryEditorView: View {
     @AppStorage("queryHorizontal") private var horizontal = false
     @State private var showRunHint = false
     var body: some View {
-        VStack(spacing: 0) {
+        // Keep scrolling content beneath the system material so the header
+        // samples the document, rather than an empty background above it.
+        ZStack(alignment: .top) {
+            if store.selectedScriptID == nil {
+                ContentUnavailableView {
+                    Label("新建命名脚本", systemImage: "doc.badge.plus")
+                } description: {
+                    Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。")
+                } actions: {
+                    Button("新建脚本") { store.nameScript() }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                GeometryReader { geometry in
+                    QuerySplitContainer {
+                        // Both panes need 260 points plus the native divider.
+                        // Keep the preference, but stack panes in a narrow workspace.
+                        if horizontal && geometry.size.width >= 521 {
+                            HSplitView {
+                                editor.padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
+                                    .padding(.trailing, 4).frame(minWidth: 260, idealWidth: 440)
+                                results.padding(.top, 42).padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
+                                    .padding(.leading, 4).frame(minWidth: 260)
+                            }
+                        } else {
+                            VSplitView {
+                                editor.padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
+                                    .padding(.bottom, 4).frame(minHeight: 150, idealHeight: 260)
+                                results.padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
+                                    .padding(.top, 4).frame(minHeight: 150)
+                            }
+                        }
+                    }
+                }
+            }
             GlassEffectContainer(spacing: 6) {
             HStack(spacing: 8) {
                 ScrollViewReader { proxy in
@@ -49,28 +83,8 @@ struct QueryEditorView: View {
                 .font(.system(size: 12, weight: .medium))
                 .padding(.horizontal, 4)
             }
-            if store.selectedScriptID == nil {
-                ContentUnavailableView {
-                    Label("新建命名脚本", systemImage: "doc.badge.plus")
-                } description: {
-                    Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。")
-                } actions: {
-                    Button("新建脚本") { store.nameScript() }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                GeometryReader { geometry in
-                    QuerySplitContainer {
-                        // Both panes need 260 points plus the native divider.
-                        // Keep the preference, but stack panes in a narrow workspace.
-                        if horizontal && geometry.size.width >= 521 {
-                            HSplitView { editor.frame(minWidth: 260, idealWidth: 440); results.frame(minWidth: 260) }
-                        } else {
-                            VSplitView { editor.frame(minHeight: 150, idealHeight: 260); results.frame(minHeight: 150) }
-                        }
-                    }
-                }
-            }
+            .frame(height: 50)
+            .background(.bar)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(8)
@@ -117,7 +131,25 @@ struct QueryEditorView: View {
                 store.query = value
             }
         )
-        return VStack(spacing: 0) {
+        return ZStack(alignment: .top) {
+            CodeEditor(text: scriptText, isJSON: store.active?.kind == .mongodb,
+                       completions: store.objects.flatMap {
+                           let plain = $0.name.range(of: "^[a-z_][a-z0-9_]*$", options: .regularExpression) != nil
+                           return [plain ? $0.name : quoteIdentifier($0.name), $0.qualifiedName]
+                       },
+                       // 50 pt tabs - 8 pt pane inset + 40 pt editor toolbar.
+                       topContentInset: store.showSlowQuerySuggestion ? 118 : 82,
+                       selectionChanged: { [weak store] range in
+                           guard let store, store.selectedScriptID == scriptID else { return }
+                           store.querySelection = range
+                       },
+                       retainedView: scriptID.flatMap { store.queryEditorViews[$0] },
+                       retainView: { [weak store] view in
+                           if let scriptID { store?.queryEditorViews[scriptID] = view }
+                       }).id(scriptID)
+                .clipped()
+
+            VStack(spacing: 0) {
             HStack {
                 Text(store.active?.kind == .mongodb ? "MongoDB JSON" : "SQL").font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -135,7 +167,7 @@ struct QueryEditorView: View {
                 } label: { Label(store.querySelection.length > 0 ? String(localized: "运行选区") : String(localized: "运行"), systemImage: "play.fill") }
                     .buttonStyle(.glassProminent).controlSize(.small).disabled(store.busy || store.query.isEmpty)
 
-            }.padding(.horizontal, 12).padding(.vertical, 8)
+            }.padding(.horizontal, 8).frame(height: 40)
             if store.showSlowQuerySuggestion {
                 HStack {
                     Text("查询已超过 5 秒，可开启查询前预估。").font(.caption)
@@ -144,21 +176,9 @@ struct QueryEditorView: View {
                     Button("暂不") { store.showSlowQuerySuggestion = false }
                 }.padding(8)
             }
-            Divider()
-            CodeEditor(text: scriptText, isJSON: store.active?.kind == .mongodb,
-                       completions: store.objects.flatMap {
-                           let plain = $0.name.range(of: "^[a-z_][a-z0-9_]*$", options: .regularExpression) != nil
-                           return [plain ? $0.name : quoteIdentifier($0.name), $0.qualifiedName]
-                       },
-                       selectionChanged: { [weak store] range in
-                           guard let store, store.selectedScriptID == scriptID else { return }
-                           store.querySelection = range
-                       },
-                       retainedView: scriptID.flatMap { store.queryEditorViews[$0] },
-                       retainView: { [weak store] view in
-                           if let scriptID { store?.queryEditorViews[scriptID] = view }
-                       }).id(scriptID)
-                .clipped()
+            }
+            .background(.bar)
+            .padding(.top, 42)
 
         }
     }
@@ -179,7 +199,7 @@ struct QueryEditorView: View {
                 Spacer()
                 ExportMenu(store: store)
                 Button { Task { await store.runQuery() } } label: { Image(systemName: "arrow.clockwise") }.disabled(store.busy)
-            }.controlSize(.small).padding(12)
+            }.controlSize(.small).padding(.horizontal, 8).frame(height: 40)
             if let failure = store.queryFailure {
                 VStack(alignment: .leading) {
                     Label("执行失败，后续语句未运行；先前自动提交的写入不会回滚。", systemImage: "exclamationmark.triangle").font(.caption)
@@ -222,7 +242,7 @@ private struct ScriptTabItem: View {
         .buttonStyle(.plain).focused($focus, equals: .title).help(title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: Text("关闭脚本")) { if canClose { close() } }
-        .glassEffect(isSelected ? .regular : .identity, in: RoundedRectangle(cornerRadius: 10))
+        .glassEffect(isSelected ? .regular : .identity, in: Capsule())
         .overlay(alignment: .trailing) {
             if showsClose {
                 Button(action: close) {
@@ -312,6 +332,7 @@ struct CodeEditor: NSViewRepresentable {
     @Binding var text: String
     var isJSON = false
     var completions: [String] = []
+    var topContentInset: CGFloat = 0
     var selectionChanged: (NSRange) -> Void = { _ in }
     var retainedView: NSScrollView? = nil
     var retainView: (NSScrollView) -> Void = { _ in }
@@ -358,6 +379,12 @@ struct CodeEditor: NSViewRepresentable {
         view.sqlCandidates = isJSON ? [] : completions
         view.isJSON = isJSON
         scroll.rulersVisible = lineNumbers
+        if scroll.contentInsets.top != topContentInset {
+            scroll.automaticallyAdjustsContentInsets = false
+            scroll.contentInsets = NSEdgeInsets(top: topContentInset, left: 0, bottom: 0, right: 0)
+            scroll.scrollerInsets = NSEdgeInsets(top: topContentInset, left: 0, bottom: 0, right: 0)
+            view.scrollRangeToVisible(view.selectedRange())
+        }
         if changed || view.string != text, let ruler = scroll.verticalRulerView as? QueryLineRuler { ruler.updateMetrics(font: font, text: text) }
         if view.string != text {
             view.string = text
