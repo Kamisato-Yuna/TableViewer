@@ -46,8 +46,14 @@ struct QueryEditorView: View {
             }.buttonStyle(.bordered).tint(.primary).controlSize(.regular)
                 .font(.system(size: 12, weight: .medium)).padding(12).disabled(store.busy)
             if store.selectedScriptID == nil {
-                ContentUnavailableView("新建命名脚本", systemImage: "doc.badge.plus", description: Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。"))
-                Button("新建脚本") { store.nameScript() }.padding()
+                ContentUnavailableView {
+                    Label("新建命名脚本", systemImage: "doc.badge.plus")
+                } description: {
+                    Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。")
+                } actions: {
+                    Button("新建脚本") { store.nameScript() }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 GeometryReader { geometry in
                     QuerySplitContainer {
@@ -62,6 +68,7 @@ struct QueryEditorView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { if store.selectedScriptID == nil { store.nameScript() } }
         .alert(store.renamingScriptID == nil ? String(localized: "新建脚本") : String(localized: "重命名脚本"), isPresented: $store.showScriptName) {
             TextField("脚本名称", text: $store.scriptName)

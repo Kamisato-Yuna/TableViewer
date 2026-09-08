@@ -63,6 +63,7 @@ struct RelationshipView: View {
             TextField("查找表或外键", text: $search).textFieldStyle(.roundedBorder)
             if visible.isEmpty {
                 ContentUnavailableView(String(localized: kind == .mongodb ? "MongoDB 没有声明式外键" : "没有匹配的外键关系"), systemImage: "point.3.connected.trianglepath.dotted", description: Text("不根据字段名称或数据值推断关系。"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
@@ -87,6 +88,7 @@ struct RelationshipView: View {
                 }
             }
         }.padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
     private func entity(_ object: DatabaseObject, columns: [String]) -> some View {
         VStack(alignment: .leading, spacing: 6) {

@@ -96,6 +96,9 @@ struct SettingsView: View {
     @AppStorage("editorLineNumbers") private var lineNumbers = true
     @AppStorage("openInspectorOnSelection") private var openInspector = false
     @AppStorage("showAutomaticEstimates") private var showAutomaticEstimates = true
+    private static let editorFonts = Array(Set(["SF Mono"] + NSFontManager.shared.availableFontFamilies
+        .filter { !$0.hasPrefix(".") && NSFont(name: $0, size: 13) != nil }))
+        .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     var body: some View {
         Form {
             Picker("语言 / Language", selection: $language) {
@@ -111,7 +114,15 @@ struct SettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Picker("外观", selection: $appearance) { Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark") }
             Section("编辑器与网格") {
-                TextField("编辑器字体", text: $editorFont)
+                Picker("编辑器字体", selection: $editorFont) {
+                    ForEach(Self.editorFonts, id: \.self) { name in
+                        Text(verbatim: name).tag(name)
+                    }
+                    // Preserve a previously entered font name until the user chooses another.
+                    if !Self.editorFonts.contains(editorFont) {
+                        Text(verbatim: editorFont).tag(editorFont)
+                    }
+                }.pickerStyle(.menu)
                 Stepper(String(localized: "字号：") + String(Int(editorSize)), value: $editorSize, in: 10...28)
                 Toggle("字体连字", isOn: $ligatures)
                 Toggle("显示行号", isOn: $lineNumbers)

@@ -139,7 +139,9 @@ struct WorkspaceView: View {
                     if store.relationshipLoading { ProgressView() }
                     else if let failure = store.relationshipError { ContentUnavailableView("操作未完成", systemImage: "exclamationmark.triangle", description: Text(failure)) }
                     else { RelationshipView(relationships: store.relationships, kind: store.active?.kind ?? .sqlite, openObject: { object in Task { await store.chooseObject(object) } }) }
-                }.task(id: store.active?.id) { await store.loadRelationships() }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .task(id: store.active?.id) { await store.loadRelationships() }
             }
             else if store.tab == .structure {
                 Group {
@@ -181,6 +183,7 @@ struct WorkspaceView: View {
                 pagination
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var tableActions: some View {
@@ -295,7 +298,10 @@ struct SidebarView: View {
                         }.buttonStyle(.plain)
                         .listRowBackground(store.active?.id == profile.id ? Color.accentColor.opacity(0.09) : Color.clear)
                         .contextMenu {
-                            if !profile.isDemo {
+                            if profile.isDemo {
+                                Button("隐藏示例数据库", systemImage: "eye.slash") { store.chooseDemoVisibility(hidden: true) }
+                                    .disabled(!store.hasUserConnections)
+                            } else {
                                 Button("编辑连接…", systemImage: "slider.horizontal.3") { store.editingProfile = profile; store.showConnectionSheet = true }
                                 Button("移除连接", systemImage: "minus.circle", role: .destructive) { store.removingProfile = profile }
                             }
@@ -308,10 +314,24 @@ struct SidebarView: View {
                             Button("继续显示") { store.chooseDemoVisibility(hidden: false) }
                         }.padding(.vertical, 5)
                     }
-                    if store.demoHidden && store.hasUserConnections {
-                        Button("显示示例数据库", systemImage: "eye") { store.chooseDemoVisibility(hidden: false) }
+                } header: {
+                    HStack {
+                        Text("连接").font(.system(size: 10, weight: .semibold)).tracking(1)
+                        Spacer()
+                        if store.hasUserConnections {
+                            Menu {
+                                Button(store.demoHidden ? String(localized: "显示示例数据库") : String(localized: "隐藏示例数据库")) {
+                                    store.chooseDemoVisibility(hidden: !store.demoHidden)
+                                }
+                            } label: {
+                                Label("连接", systemImage: "ellipsis").labelStyle(.iconOnly).foregroundStyle(.gray)
+                            }
+                            .menuStyle(.borderlessButton).menuIndicator(.hidden)
+                            .controlSize(.mini).tint(.gray).frame(width: 20)
+                            .help(store.demoHidden ? String(localized: "显示示例数据库") : String(localized: "隐藏示例数据库"))
+                        }
                     }
-                } header: { Text("连接").font(.system(size: 10, weight: .semibold)).tracking(1) }
+                }
                 if store.active != nil {
                     Section("工作台") {
                         workspaceLink(.overview)
