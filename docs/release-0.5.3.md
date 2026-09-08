@@ -16,6 +16,11 @@
 
 ## 验收
 
-组合包的正式构建、独立 GUI、公证及公开发行证据完成后补齐。实现任务旧 GUI 未包含最终灰色，不能替代本次最终组合包检查。
+- 源码提交 `faafafe5f333db75ceb463b8b3ecbf2700ef5cc5`，PR #33 的 source/macOS CI 均通过（run `34206944790`）。
+- 最终 Release 组合构建为 0.5.3（9），Developer ID 深度严格签名验证通过；632 条双语资源、8 项更新源测试、打包资源本地化探针和示例显隐脚本通过。
+- 从最终应用复制并重新签名独立 bundle `local.yuna.TableViewer.Release053CombinedQA`，禁用正式更新源，实际启动验收。字体原生菜单显示本机字体，选择 Menlo 后退出并重启仍保留 Menlo。
+- 使用专用合成 SQLite `qa.sqlite`：示例右键隐藏、连接标题菜单恢复和再次隐藏均通过，期间当前连接保持 Synthetic；重启后仍隐藏示例并保留当前连接。移除最后一个合成连接后 Studio 自动恢复，唯一示例连接的隐藏菜单禁用，数据库文件保留。
+- 最终灰色省略号已在深色和浅色外观目视检查。查询无脚本提示与按钮集中、底栏贴底；实体关系无匹配空态和窗口放大/恢复检查通过。
+- Apple 公证上传的加速与非加速通道多次返回 `HTTPClientError.deadlineExceeded`。服务器存在 In Progress 记录，但尚无 Accepted；不能视为上传完整或公证通过。正式发布、DMG/appcast 和公开下载验收仍待完成。
 
 本轮不重复外部 PostgreSQL/MongoDB、真实模型、macOS 26 真机或生产客户端自动安装重启全链路；使用独立 bundle 与合成数据保护用户真实连接、Keychain 和窗口。
