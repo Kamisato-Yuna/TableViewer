@@ -21,11 +21,11 @@
     />
     <meta
       property="og:image"
-      content="https://kamisato-yuna.github.io/TableViewer/assets/workspace-dark-zh-Hans.png"
+      content="https://kamisato-yuna.github.io/TableViewer/assets/screenshots/workspace-dark.png"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="canonical" href="https://kamisato-yuna.github.io/TableViewer/" />
-    <link rel="icon" href="assets/app-icon.png" type="image/png" />
+    <link rel="icon" href="assets/favicon.png" type="image/png" />
     <link rel="stylesheet" href="styles.css" />
     <script src="app.js" defer></script>
   </head>
@@ -59,7 +59,7 @@
     <header class="header">
       <nav class="nav glass" aria-label="主导航">
         <a class="brand" href="#top" aria-label="TableViewer 首页"
-          ><img src="assets/app-icon.png" width="36" height="36" alt="" /><span
+          ><img src="assets/app-icon.webp" width="36" height="36" alt="" /><span
             >TableViewer</span
           ></a
         >
@@ -95,14 +95,15 @@
         <figure class="product-figure">
           <div class="screenshot-controls">
             <span id="screenshot-caption" aria-live="polite"
-              >真实界面 · 浅色外观</span
+              >真实界面 · Studio 工作台</span
             >
             <div
               class="appearance-switch glass"
               role="group"
               aria-label="真实界面外观"
             >
-              <button type="button" data-appearance="light" aria-pressed="true">
+              <button type="button" data-appearance="system" aria-pressed="true">跟随系统</button>
+              <button type="button" data-appearance="light" aria-pressed="false">
                 浅色
               </button>
               <button type="button" data-appearance="dark" aria-pressed="false">
@@ -115,30 +116,32 @@
             id="open-screenshot"
             aria-label="放大查看 TableViewer 浅色真实界面"
           >
-            <img
-              src="assets/workspace-light-zh-Hans.png"
-              width="2880"
-              height="1800"
-              id="workspace-preview"
-              alt="TableViewer 浅色真实界面：左侧数据库导航、中间 projects 数据表、右侧记录详情"
-              fetchpriority="high"
-            />
+            <picture id="screenshot-picture">
+              <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/workspace-dark-768.webp 768w, assets/screenshots/workspace-dark-1440.webp 1440w, assets/screenshots/workspace-dark-2880.webp 2880w" sizes="(max-width: 700px) calc(100vw - 36px), (max-width: 1180px) calc(100vw - 80px), 1100px" />
+              <img src="assets/screenshots/workspace-light-2880.webp" srcset="assets/screenshots/workspace-light-768.webp 768w, assets/screenshots/workspace-light-1440.webp 1440w, assets/screenshots/workspace-light-2880.webp 2880w" sizes="(max-width: 700px) calc(100vw - 36px), (max-width: 1180px) calc(100vw - 80px), 1100px" width="2880" height="1800" id="workspace-preview" alt="TableViewer Studio 工作台：自动估算栏、示例数据与记录详情" fetchpriority="high" decoding="async" />
+            </picture>
             <span class="zoom-hint"
-              >放大查看 · 高清原图
+              >放大查看 · 真实界面
               <svg class="icon"><use href="#arrow-up-right" /></svg
             ></span>
           </button>
+          <div class="screenshot-scenes appearance-switch" role="group" aria-label="选择真实界面">
+            <button type="button" data-scene="workspace" aria-pressed="true">Studio 工作台</button>
+            <button type="button" data-scene="agent" aria-pressed="false">Agent 与最近会话</button>
+          </div>
+          <p class="screenshot-note">0.5.0 实际应用 · 独立 Studio 示例库与未发送的 Agent 草稿</p>
+          <p id="screenshot-status" class="screenshot-status" role="status"></p>
           <noscript
             ><p class="screenshot-fallback">
               <a
-                href="assets/workspace-light-zh-Hans.png"
+                href="assets/screenshots/workspace-light.png"
                 target="_blank"
                 rel="noopener noreferrer"
                 >浅色原图</a
               >
               ·
               <a
-                href="assets/workspace-dark-zh-Hans.png"
+                href="assets/screenshots/workspace-dark.png"
                 target="_blank"
                 rel="noopener noreferrer"
                 >深色原图</a
@@ -470,7 +473,7 @@
           <div class="download-heading reveal">
             <img
               class="download-icon"
-              src="assets/app-icon.png"
+              src="assets/app-icon.webp"
               width="112"
               height="112"
               alt="TableViewer 数据透镜图标"
@@ -550,7 +553,7 @@
     <footer class="footer section-wrap">
       <div class="footer-top">
         <a class="brand" href="#top"
-          ><img src="assets/app-icon.png" width="30" height="30" alt="" /><span
+          ><img src="assets/app-icon.webp" width="30" height="30" alt="" /><span
             >TableViewer</span
           ></a
         >
@@ -590,18 +593,18 @@
         <span id="dialog-caption">TableViewer · 浅色真实界面</span
         ><a
           id="original-screenshot"
-          href="assets/workspace-light-zh-Hans.png"
+          href="assets/screenshots/workspace-light.png"
           target="_blank"
           rel="noopener noreferrer"
-          >打开原图 · 2880 × 1800</a
+          >打开截图 · 2880 × 1800</a
         ><button id="close-screenshot" class="small-button" autofocus>
           关闭 <kbd>Esc</kbd>
         </button>
       </div>
       <img
-        src="assets/workspace-light-zh-Hans.png"
         width="2880"
         height="1800"
+        decoding="async"
         id="dialog-screenshot"
         alt="TableViewer 浅色数据库工作台完整界面"
       />

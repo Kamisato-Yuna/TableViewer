@@ -355,33 +355,113 @@ $("reset-agent").addEventListener("click", () => {
 });
 
 const dialog = $("screenshot-dialog");
-const screenshots = {
-  light: { file: "assets/workspace-light-zh-Hans.png", label: "浅色" },
-  dark: { file: "assets/workspace-dark-zh-Hans.png", label: "深色" },
+const systemAppearance = matchMedia("(prefers-color-scheme: dark)");
+const scenes = {
+  workspace: { label: "Studio 工作台", detail: "自动估算栏、示例数据与记录详情" },
+  agent: { label: "Agent 与最近会话", detail: "Liquid Glass 输入区、未发送草稿与最近会话时间线" },
 };
-document.querySelectorAll("[data-appearance]").forEach((button) =>
-  button.addEventListener("click", () => {
-    const selected = screenshots[button.dataset.appearance];
-    $("workspace-preview").src = $("dialog-screenshot").src = selected.file;
-    $("workspace-preview").alt =
-      `TableViewer ${selected.label}真实界面：Studio 示例数据库与记录详情`;
-    $("dialog-screenshot").alt =
-      `TableViewer ${selected.label}数据库工作台完整界面`;
-    $("open-screenshot").setAttribute(
-      "aria-label",
-      `放大查看 TableViewer ${selected.label}真实界面`,
-    );
-    $("screenshot-caption").textContent = `真实界面 · ${selected.label}外观`;
-    $("dialog-caption").textContent = `TableViewer · ${selected.label}真实界面`;
-    $("original-screenshot").href = selected.file;
-    document
-      .querySelectorAll("[data-appearance]")
-      .forEach((item) =>
-        item.setAttribute("aria-pressed", String(item === button)),
-      );
-  }),
-);
+let appearance = "system";
+let scene = "workspace";
+let revision = 0;
+let displayed;
+const previewCache = new Map();
+const imageSizes = $("workspace-preview").sizes;
+const imageWidth = Number($("workspace-preview").getAttribute("width"));
+const imageHeight = Number($("workspace-preview").getAttribute("height"));
+const themeFor = (choice) => choice === "system" ? (systemAppearance.matches ? "dark" : "light") : choice;
+const imageSet = (key) => [768, 1440, 2880].map((width) => `assets/screenshots/${key}-${width}.webp ${width}w`).join(", ");
+const originalFile = (key) => `assets/screenshots/${key}.png`;
+
+function previewFor(key) {
+  if (!previewCache.has(key)) {
+    const image = new Image(imageWidth, imageHeight);
+    image.decoding = "async";
+    image.sizes = imageSizes;
+    image.srcset = imageSet(key);
+    image.src = `assets/screenshots/${key}-2880.webp`;
+    const ready = image.decode().then(() => image).catch((error) => {
+      previewCache.delete(key); // A failed request can be retried by the next click.
+      throw error;
+    });
+    previewCache.set(key, ready);
+  }
+  return previewCache.get(key);
+}
+function describePreview(selectedScene, theme) {
+  const label = theme === "dark" ? "深色" : "浅色";
+  const description = scenes[selectedScene];
+  $("workspace-preview").alt = `TableViewer ${label}${description.label}：${description.detail}`;
+  $("open-screenshot").setAttribute("aria-label", `放大查看 TableViewer ${label}${description.label}`);
+  $("screenshot-caption").textContent = `真实界面 · ${label}外观`;
+  document.querySelectorAll("[data-appearance]").forEach((button) =>
+    button.setAttribute("aria-pressed", String(button.dataset.appearance === appearance)));
+  document.querySelectorAll("[data-scene]").forEach((button) =>
+    button.setAttribute("aria-pressed", String(button.dataset.scene === selectedScene)));
+}
+async function selectScreenshot() {
+  const request = ++revision;
+  const selectedScene = scene;
+  const theme = themeFor(appearance);
+  const key = `${selectedScene}-${theme}`;
+  $("open-screenshot").setAttribute("aria-busy", "true");
+  $("screenshot-status").textContent = "正在准备界面…";
+  try {
+    const image = await previewFor(key);
+    // A resize can select a new srcset candidate even on a cached element.
+    await image.decode();
+    if (request !== revision) return;
+    // Reuse the decoded element; keep the previous picture visible until ready.
+    image.id = "workspace-preview";
+    $("screenshot-picture").replaceChildren(image);
+    displayed = { key, scene: selectedScene, theme };
+    describePreview(selectedScene, theme);
+    $("screenshot-status").textContent = "";
+  } catch {
+    previewCache.delete(key);
+    if (request === revision) $("screenshot-status").textContent = "图片暂时无法加载，已保留当前界面。请重试。";
+  } finally {
+    if (request === revision) $("open-screenshot").removeAttribute("aria-busy");
+  }
+}
+// The media source selects the right first image before JavaScript runs.
+// Adopt that same request/element, then let explicit choices own later changes.
+const firstTheme = themeFor(appearance);
+const firstKey = `workspace-${firstTheme}`;
+const firstImage = $("workspace-preview");
+firstImage.srcset = imageSet(firstKey);
+firstImage.src = `assets/screenshots/${firstKey}-2880.webp`;
+$("screenshot-picture").querySelectorAll("source").forEach((source) => source.remove());
+previewCache.set(firstKey, firstImage.decode().then(() => firstImage).catch((error) => {
+  previewCache.delete(firstKey);
+  throw error;
+}));
+displayed = { key: firstKey, scene, theme: firstTheme };
+selectScreenshot();
+
+function warmOnIntent(button, keyForButton) {
+  // Only the image under the user's pointer/focus is warmed, never the whole gallery.
+  const warm = () => previewFor(keyForButton()).catch(() => {});
+  button.addEventListener("pointerenter", warm);
+  button.addEventListener("focus", warm);
+}
+document.querySelectorAll("[data-appearance]").forEach((button) => {
+  warmOnIntent(button, () => `${scene}-${themeFor(button.dataset.appearance)}`);
+  button.addEventListener("click", () => { appearance = button.dataset.appearance; selectScreenshot(); });
+});
+document.querySelectorAll("[data-scene]").forEach((button) => {
+  warmOnIntent(button, () => `${button.dataset.scene}-${themeFor(appearance)}`);
+  button.addEventListener("click", () => { scene = button.dataset.scene; selectScreenshot(); });
+});
+systemAppearance.addEventListener("change", () => { if (appearance === "system") selectScreenshot(); });
 $("open-screenshot").addEventListener("click", () => {
+  const { key, scene: shownScene, theme } = displayed;
+  const label = theme === "dark" ? "深色" : "浅色";
+  const image = $("dialog-screenshot");
+  // Reuse the already decoded preview in the dialog. Full source is an explicit link.
+  image.src = $("workspace-preview").currentSrc;
+  image.alt = `TableViewer ${label}${scenes[shownScene].label}完整界面`;
+  $("dialog-caption").textContent = `${scenes[shownScene].label} · ${label}`;
+  $("original-screenshot").href = originalFile(key);
   dialog.showModal();
   document.body.style.overflow = "hidden";
 });
@@ -389,16 +469,11 @@ $("close-screenshot").addEventListener("click", () => dialog.close());
 dialog.addEventListener("click", (event) => {
   if (event.target !== dialog) return;
   const r = dialog.getBoundingClientRect();
-  if (
-    event.clientX < r.left ||
-    event.clientX > r.right ||
-    event.clientY < r.top ||
-    event.clientY > r.bottom
-  )
-    dialog.close();
+  if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close();
 });
 dialog.addEventListener("close", () => {
   document.body.style.overflow = "";
+  $("open-screenshot").focus({ preventScroll: true });
 });
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 if ("IntersectionObserver" in window && !reducedMotion.matches) {
