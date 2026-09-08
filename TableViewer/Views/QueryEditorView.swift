@@ -28,7 +28,7 @@ struct QueryEditorView: View {
                         }
                     }
                 }
-                Button { store.nameScript() } label: { Image(systemName: "plus") }.help("新建命名脚本")
+                Button { store.nameScript() } label: { Image(systemName: "plus").frame(width: 20, height: 18) }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
                 Menu {
                     Section("最近 10 个脚本") {
                         let recent = Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))
@@ -39,17 +39,26 @@ struct QueryEditorView: View {
                     }
                     Divider()
                     Button("更多历史…") { openWindow(id: "script-history") }
-                } label: { Image(systemName: "clock.arrow.circlepath") }
+                } label: { Image(systemName: "clock.arrow.circlepath").frame(width: 20, height: 18) }
+                .menuStyle(.borderedButton)
                 .help("脚本历史").accessibilityLabel("脚本历史")
-                Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1") }.help("切换上下或左右分栏")
-            }.controlSize(.small).padding(12).disabled(store.busy)
+                Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1").frame(width: 20, height: 18) }.help("切换上下或左右分栏")
+            }.buttonStyle(.glass).controlSize(.regular).font(.system(size: 13)).padding(12).disabled(store.busy)
             if store.selectedScriptID == nil {
                 ContentUnavailableView("新建命名脚本", systemImage: "doc.badge.plus", description: Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。"))
                 Button("新建脚本") { store.nameScript() }.padding()
-            } else if horizontal {
-                HSplitView { editor.frame(minWidth: 260, idealWidth: 440); results.frame(minWidth: 260) }
             } else {
-                VSplitView { editor.frame(minHeight: 150, idealHeight: 260); results.frame(minHeight: 150) }
+                GeometryReader { geometry in
+                    QuerySplitContainer {
+                        // Both panes need 260 points plus the native divider.
+                        // Keep the preference, but stack panes in a narrow workspace.
+                        if horizontal && geometry.size.width >= 521 {
+                            HSplitView { editor.frame(minWidth: 260, idealWidth: 440); results.frame(minWidth: 260) }
+                        } else {
+                            VSplitView { editor.frame(minHeight: 150, idealHeight: 260); results.frame(minHeight: 150) }
+                        }
+                    }
+                }
             }
         }
         .onAppear { if store.selectedScriptID == nil { store.nameScript() } }
@@ -145,6 +154,21 @@ struct QueryEditorView: View {
             }
             if store.queryResult.hasMore { Text("当前仅显示前 1,000 行或首批文档；请通过 LIMIT / skip 缩小范围。").font(.caption2).padding(8) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// A nested system split view must use the query pane's bounds, rather than
+// expanding into NavigationSplitView's sidebar safe area on macOS 27.
+private struct QuerySplitContainer<Content: View>: NSViewRepresentable {
+    @ViewBuilder var content: () -> Content
+    func makeNSView(context: Context) -> NSHostingView<Content> {
+        let host = NSHostingView(rootView: content())
+        host.safeAreaRegions = []
+        host.sizingOptions = []
+        return host
+    }
+    func updateNSView(_ host: NSHostingView<Content>, context: Context) {
+        host.rootView = content()
     }
 }
 
@@ -316,6 +340,44 @@ final class QueryTextView: NSTextView {
         if item.action == #selector(copy(_:)) { return isSelectable && !string.isEmpty }
         if item.action == #selector(cut(_:)) { return isEditable && !string.isEmpty }
         return super.validateUserInterfaceItem(item)
+    }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window != nil else { return }
+        // A retained editor can reattach after the representable's update callback.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.window != nil else { return }
+            if let container = self.textContainer { self.layoutManager?.ensureLayout(for: container) }
+            self.scrollRangeToVisible(self.selectedRange())
+        }
+    }
+    override func setFrameSize(_ newSize: NSSize) {
+        // Rewrapping changes the selected line's vertical position. Keep an
+        // already visible caret/selection in view, without undoing manual scrolling.
+        var revealSelection = false
+        if newSize.width != frame.width, frame.width > 0,
+           window?.firstResponder === self, !string.isEmpty, let layoutManager, let textContainer {
+            let selection = selectedRange()
+            let length = (string as NSString).length
+            var rect: NSRect
+            if selection.location == length, layoutManager.extraLineFragmentRect.height > 0 {
+                rect = layoutManager.extraLineFragmentRect
+            } else {
+                let range = NSRange(location: min(selection.location, length - 1), length: max(1, selection.length))
+                let glyphs = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+                rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
+            }
+            rect.origin.x += textContainerOrigin.x
+            rect.origin.y += textContainerOrigin.y
+            revealSelection = visibleRect.intersects(rect)
+        }
+        super.setFrameSize(newSize)
+        if revealSelection {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.scrollRangeToVisible(self.selectedRange())
+            }
+        }
     }
     var ligaturesEnabled = false
     override func copy(_ sender: Any?) {

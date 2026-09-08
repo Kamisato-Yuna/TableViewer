@@ -142,10 +142,14 @@ struct ConnectionSheet: View {
                 let parts = URLComponents(string: secret)
                 profile.host = parts?.host ?? "MongoDB"; profile.port = parts?.port.map(String.init) ?? "27017"
             }
+            let isNew = !store.profiles.contains { $0.id == profile.id }
             try store.saveConnection(profile, secret: secret)
             let saved = profile, credential = secret
             dismiss()
-            Task { await store.connect(saved, secret: credential) }
+            Task {
+                await store.connect(saved, secret: credential)
+                if isNew { store.suggestDemoVisibility(afterAdding: saved) }
+            }
         } catch { testSucceeded = false; testMessage = error.localizedDescription }
     }
 }

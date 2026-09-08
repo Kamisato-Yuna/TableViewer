@@ -24,6 +24,7 @@ private struct AgentConversationView: View {
     @State private var userScrolling = false
     @State private var scrollRequest = 0
     @State private var hoveredMessageID: UUID?
+    @State private var authorizeResults = false
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -36,6 +37,12 @@ private struct AgentConversationView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(agent.title).font(.headline).textSelection(.enabled)
                 Text("所属数据库：\(agent.connection?.connectionName ?? "") · \(agent.connection?.kind.rawValue ?? "")").font(.caption).foregroundStyle(.secondary)
+                if agent.automaticallySendsResults {
+                    HStack {
+                        Label("本会话自动发送结果", systemImage: "arrow.up.circle.fill")
+                        Button("撤销授权") { agent.authorizeAutomaticResults(false); authorizeResults = false }
+                    }.font(.caption).foregroundStyle(.secondary)
+                }
                 if agent.archived {
                     HStack { Text("已归档，运行进度仍会保留。"); Button("恢复会话") { store.agentLibrary.archive(agent, archived: false) } }.font(.caption)
                 }
@@ -73,7 +80,9 @@ private struct AgentConversationView: View {
                         if agent.canContinue {
                             VStack(alignment: .leading, spacing: 9) {
                                 Text("回答与结果目前只在本机。确认后会发送给所配置的 API；回答问题不代表批准数据库操作。").font(.system(size: 12)).foregroundStyle(.secondary)
-                                Button("发送结果并继续", systemImage: "arrow.up.circle") { if let context = store.agentContext(for: agent) { agent.continueWithResults(context: context); scrollToBottom() } }.buttonStyle(.glassProminent).disabled(store.busy)
+                                Toggle("本会话自动发送结果", isOn: $authorizeResults)
+                                Text("仅对本会话生效，可随时撤销；数据库执行仍需按审批设置确认。失败或不确定的结果仍需手动发送。").font(.caption).foregroundStyle(.secondary)
+                                Button("发送结果并继续", systemImage: "arrow.up.circle") { if let context = store.agentContext(for: agent) { agent.authorizeAutomaticResults(authorizeResults); agent.continueWithResults(context: context); scrollToBottom() } }.buttonStyle(.glassProminent).disabled(store.busy)
                             }
                         }
                         Color.clear.frame(height: 1).id("agent-bottom")
@@ -132,7 +141,7 @@ private struct AgentConversationView: View {
                     .glassEffect(.regular, in: .rect(cornerRadius: 24))
             }.frame(width: readingWidth - 48).padding(.horizontal, 24).padding(.top, 8).padding(.bottom, 16)
 
-        }.sheet(isPresented: $agent.showSettings) { AgentSettingsView(agent: agent, saved: { store.newAgentSession() }) }
+        }.sheet(isPresented: $agent.showSettings) { AgentSettingsView(agent: agent, saved: { store.agentLibrary.sessions.forEach { $0.authorizeAutomaticResults(false) }; store.newAgentSession() }) }
     }
     private func scrollToBottom() { followsBottom = true; scrollRequest += 1 }
     private func send() { if let context = store.agentContext(for: agent), !store.busy { agent.send(context: context); scrollToBottom() } }
@@ -144,8 +153,8 @@ private struct AgentConversationView: View {
             AgentExampleButtons { agent.input = $0 }
             VStack(alignment: .leading, spacing: 5) {
                 Text("⌘↩ 发送 · Return 换行 · 等待批准时仍可写草稿")
-                Text("结果始终留在本机，发送给 API 仍需确认。")
-                Text("发送内容包含对话历史\(agent.shareSchema ? String(localized: "及当前表结构") : "")；不会自动发送记录、密码或连接 URI。")
+                Text("结果默认留在本机；你可以单次发送，或授权本会话自动发送。")
+                Text("发送内容包含对话历史\(agent.shareSchema ? String(localized: "及当前表结构") : "")；仅发送你确认或已授权的结果，不附带密码或连接 URI。")
             }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 4)
             if !agent.ready { Button("连接 OpenAI-compatible API", systemImage: "plus") { agent.showSettings = true }.buttonStyle(.glassProminent) }
         }.padding(.vertical, 35)

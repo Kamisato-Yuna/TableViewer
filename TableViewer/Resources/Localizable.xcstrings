@@ -6156,7 +6156,6 @@
       }
     },
     "已复制": {
-      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -10386,6 +10385,182 @@
           "stringUnit": {
             "state": "translated",
             "value": "默认显示自动估算栏"
+          }
+        }
+      }
+    },
+    "已添加数据库，可以隐藏示例数据库。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Database added. You can hide the demo database."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已添加数据库，可以隐藏示例数据库。"
+          }
+        }
+      }
+    },
+    "隐藏示例数据库": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Demo Database"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏示例数据库"
+          }
+        }
+      }
+    },
+    "继续显示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Showing"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续显示"
+          }
+        }
+      }
+    },
+    "显示示例数据库": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Demo Database"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示示例数据库"
+          }
+        }
+      }
+    },
+    "本会话自动发送结果": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatically send results in this session"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本会话自动发送结果"
+          }
+        }
+      }
+    },
+    "撤销授权": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoke permission"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销授权"
+          }
+        }
+      }
+    },
+    "仅对本会话生效，可随时撤销；数据库执行仍需按审批设置确认。失败或不确定的结果仍需手动发送。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applies only to this session and can be revoked at any time. Database execution still follows approval settings. Failed or uncertain results require manual sending."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅对本会话生效，可随时撤销；数据库执行仍需按审批设置确认。失败或不确定的结果仍需手动发送。"
+          }
+        }
+      }
+    },
+    "继续会话": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue session"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续会话"
+          }
+        }
+      }
+    },
+    "结果默认留在本机；你可以单次发送，或授权本会话自动发送。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Results stay local by default. Send once or authorize automatic sending for this session."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结果默认留在本机；你可以单次发送，或授权本会话自动发送。"
+          }
+        }
+      }
+    },
+    "发送内容包含对话历史%@；仅发送你确认或已授权的结果，不附带密码或连接 URI。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages include conversation history%@ and only results you confirm or authorize. Connection passwords and URIs are not attached."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送内容包含对话历史%@；仅发送你确认或已授权的结果，不附带密码或连接 URI。"
+          }
+        }
+      }
+    },
+    "复制": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
           }
         }
       }

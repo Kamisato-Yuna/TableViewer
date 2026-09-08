@@ -31,6 +31,26 @@ struct ShellEntry: Identifiable {
 @MainActor @Observable final class WorkspaceStore {
     let engine = DatabaseEngine()
     var profiles: [ConnectionProfile] = []
+    var demoHidden = UserDefaults.standard.bool(forKey: "demoSidebarHidden")
+    var demoVisibilityChoiceMade = UserDefaults.standard.bool(forKey: "demoSidebarChoiceMade")
+    var showDemoVisibilitySuggestion = false
+    var hasUserConnections: Bool { profiles.contains { !$0.isDemo } }
+    var visibleProfiles: [ConnectionProfile] { profiles.filter { !$0.isDemo || !demoHidden || !hasUserConnections } }
+
+    func chooseDemoVisibility(hidden: Bool) {
+        demoHidden = hidden && hasUserConnections
+        demoVisibilityChoiceMade = true
+        showDemoVisibilitySuggestion = false
+        UserDefaults.standard.set(demoHidden, forKey: "demoSidebarHidden")
+        UserDefaults.standard.set(true, forKey: "demoSidebarChoiceMade")
+    }
+
+    func suggestDemoVisibility(afterAdding profile: ConnectionProfile) {
+        guard !profile.isDemo, active?.id == profile.id, error == nil,
+              !demoHidden, !demoVisibilityChoiceMade else { return }
+        showDemoVisibilitySuggestion = true
+    }
+
     var active: ConnectionProfile?
     var objects: [DatabaseObject] = []
     var selectedObject: DatabaseObject?
@@ -192,7 +212,11 @@ struct ShellEntry: Identifiable {
         do {
             let demo = try LocalWorkspace.createDemo()
             profiles.append(demo)
-            await connect(demo)
+            if !hasUserConnections {
+                demoHidden = false
+                UserDefaults.standard.set(false, forKey: "demoSidebarHidden")
+            }
+            await connect(visibleProfiles.first(where: { $0.isDemo }) ?? visibleProfiles.first ?? demo)
         } catch { report(error) }
         if let loadFailure { report(DatabaseFailure(String(localized: "连接配置读取失败，原文件已保留：") + loadFailure.localizedDescription)) }
     }
@@ -395,13 +419,20 @@ struct ShellEntry: Identifiable {
         appliedCondition = condition; page = 0; _ = await refresh()
     }
     func confirmEstimate(_ estimate: QueryEstimate) async -> Bool {
-        let alert = NSAlert(); alert.messageText = String(localized: "执行前规模预估")
-        alert.informativeText = estimate.summary + "\n" + String(estimate.details.prefix(900))
-        alert.alertStyle = estimate.severity == .excessive ? .critical : .warning
-        alert.addButton(withTitle: String(localized: "取消")); alert.addButton(withTitle: String(localized: "继续执行"))
-        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.identifier?.rawValue == "workspace" }) ?? NSApp.windows.first(where: { $0.isVisible }) else { return false }
+        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.identifier?.rawValue == "workspace" }) ?? NSApp.windows.first(where: { $0.isVisible }), window.attachedSheet == nil else { return false }
+        let width = min(840, max(320, window.contentLayoutRect.width - 40))
+        let height = min(620, max(260, window.contentLayoutRect.height - 60))
         return await withCheckedContinuation { continuation in
-            alert.beginSheetModal(for: window) { continuation.resume(returning: $0 == .alertSecondButtonReturn) }
+            let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: height), styleMask: [.titled], backing: .buffered, defer: false)
+            panel.title = String(localized: "执行前规模预估")
+            panel.contentView = NSHostingView(rootView: ExecutionEstimateSheet(estimate: estimate) { approved in
+                window.endSheet(panel, returnCode: approved ? .OK : .cancel)
+            }.frame(width: width, height: height))
+            window.beginSheet(panel) { response in
+                panel.orderOut(nil)
+                panel.contentView = nil
+                continuation.resume(returning: response == .OK)
+            }
         }
     }
 
@@ -503,18 +534,28 @@ struct ShellEntry: Identifiable {
     }
 
     func removeConnection(_ profile: ConnectionProfile) async {
-        guard allowNavigation() else { return }
+        guard !profile.isDemo, allowNavigation() else { return }
         busy = true
         defer { busy = false }
         do {
             let updated = profiles.filter { $0.id != profile.id }
             if profile.kind != .sqlite { try ConnectionVault.remove(id: profile.id) }
             try LocalWorkspace.saveProfiles(updated); profiles = updated
+            if !hasUserConnections {
+                demoHidden = false
+                showDemoVisibilitySuggestion = false
+                UserDefaults.standard.set(false, forKey: "demoSidebarHidden")
+            }
             if active?.id == profile.id {
                 await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = ""
                 await engine.disconnect(); queryEditorViews.removeAll(); active = nil; objects = []; result = QueryResult(); selectedObject = nil; selectedRowID = nil
-                queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""; draft = []; documentDraft = ""
+                selectedScriptID = nil; queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""; draft = []; documentDraft = ""
                 replicaSnapshot = nil; replicaError = nil; status = String(localized: "连接已移除")
+                selectedScriptID = nil; schemaMetadata = nil; relationships = []; tab = .overview
+                if let next = visibleProfiles.first {
+                    busy = false
+                    await connect(next)
+                }
             }
         } catch { report(error) }
     }
@@ -628,5 +669,33 @@ struct ShellEntry: Identifiable {
             try text.write(to: url, atomically: true, encoding: .utf8)
             status = String(localized: "已导出当前结果 · \(exported.rows.count) 行")
         } catch { report(error) }
+    }
+}
+
+
+private struct ExecutionEstimateSheet: View {
+    let estimate: QueryEstimate
+    let finish: (Bool) -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("执行前规模预估", systemImage: "exclamationmark.triangle")
+                .font(.title2.bold()).foregroundStyle(estimate.severity == .excessive ? Color.red : Color.orange)
+            ScrollView(.vertical) {
+                Text(verbatim: estimate.summary).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxHeight: 100)
+            Divider()
+            ScrollView([.horizontal, .vertical]) {
+                Text(verbatim: estimate.details).font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled).fixedSize(horizontal: true, vertical: true)
+                    .padding(12)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 10))
+            Divider()
+            HStack {
+                Spacer()
+                Button("取消") { finish(false) }.keyboardShortcut(.cancelAction)
+                Button("继续执行") { finish(true) }.keyboardShortcut(.defaultAction).buttonStyle(.glassProminent)
+            }.controlSize(.large)
+        }.padding(24)
     }
 }
