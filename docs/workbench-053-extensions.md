@@ -80,3 +80,22 @@ TV053_PG_PORT=<postgres-port> TV053_MONGO_PORT=<mongo-port> bash script/test_wor
 - 2026-09-09，用户在最新版隔离 QA 应用实际操作后明确确认：“悬停清晰度通过了”。关闭图标悬停清晰度记为用户验收通过；旧版模糊及标题重影失败记录不作为最终验收结论。
 - 最终真实应用证据：two-blocks-final-light.png、two-blocks-final-stacked-light.png、two-blocks-final-dark.png；长脚本与 120 行结果滚动边界见 two-blocks-corners-dark.png、two-blocks-corners-dark-narrow.png（标签前景修正前的同一圆角布局）。历史菜单实际打开正常。
 - 本次用户确认仅覆盖悬停清晰度，不扩大为所有控件按下状态、物理分栏拖动或全局透明度开关的验收；这些项目仍保持此前记录的证据边界。
+
+### 长标签列表溢出修复
+
+- 保留已认可的两块圆角、标签前景和关闭按钮外观。问题包含原先只有背景形状而没有视口裁剪，以及滚动标签与固定辅助控件共用玻璃渲染组；真实截图仍可见离屏标签进入右侧控件区后，改为两个独立玻璃组，并给滚动组增加公开 NSHostingView 的安全区禁用、确定尺寸和圆角 backing-layer 裁剪。固定辅助控件保持独立固有尺寸。
+- 已核查 SDK 的 scrollEdgeEffectStyle(.soft) 与 Apple [ScrollEdgeEffectStyle](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle)。在本机独立标签条上，仅应用原生样式没有形成所需过渡，因此曾在确有隐藏内容的一端使用 28 pt 系统 regularMaterial 渐进遮罩，并渐进隐去最外侧内容；不改变整个列表透明度，不使用固定 alpha 模拟系统材质，不修改全局偏好。遮罩禁止命中并从辅助功能树隐藏。
+- onScrollGeometryChange 只向状态传递首尾两项布尔值，跨过端点才更新边缘状态，不在每个滚动像素重建工作台。原生几何测试覆盖短列表、首/中/尾、弹性越界；真实 NSHostingView 测试覆盖 30 个长标签、最末自动定位、320 pt 视口、关闭边缘标签和短列表恢复，且两侧离屏命中均返回 nil。命令：bash script/test_tab_overflow.sh；日志：tv053-tab-overflow-test.log。
+- 最终构建：tv053-tab-overflow-final.log。隔离实际 .app 已验证末项自动滚入、新建与历史控件打开、边缘合成标签通过 ⇧⌘W 关闭后原 QA 查询结果 11 保留。物理横向滚动流畅度与可见 x 悬停操作等待用户复核；后台横向滚轮未产生移动，不能写作物理滚动通过。
+
+- 用户后续确认“操作正常，裁剪未越界，但是并没有自然磨砂隐去”：操作与裁剪通过，旧 SwiftUI 边缘材质效果未通过。当前改用公开 NSVisualEffectView（headerView / withinWindow）作为滚动内容上方的原生兄弟视图，配合 28 pt 渐变遮罩；不拦截命中。构建 tv053-inspector.log、原生布局测试 tv053-tab-native-test.log 通过。该轮更新当时仍待用户复核，最终结论见下方当前版本验收。
+
+### 记录详情空状态排版
+
+- 查询等非数据页和数据页未选中记录两种空状态均填满标题以下的剩余区域，外层明确顶部对齐，避免“记录详情”标题随空状态整体垂直居中。
+- 隔离 QA 实际打开查询页右侧栏，确认标题位于顶部、提示独立居中。构建 tv053-inspector.log 通过；未修改字段编辑、保存和删除逻辑。
+
+### 当前版本验收通过（2026-09-09）
+
+- 用户明确确认：“观感可以维持现状，当前版本视为通过”。当前隔离 QA 中的标签外观、边缘过渡和记录详情侧栏排版按此确认验收通过，保持现有实现，不再继续调整观感。
+- 本轮构建与原生标签布局测试已通过；该确认取代前述当前版本视觉待复核状态。用户接受的是当前版本观感，不将此表述为与访达磨砂效果完全一致，也不扩大为正式发行验收。

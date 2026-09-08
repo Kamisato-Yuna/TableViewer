@@ -5,11 +5,14 @@ struct QueryEditorView: View {
     @Environment(\.openWindow) private var openWindow
     @AppStorage("queryHorizontal") private var horizontal = false
     @State private var showRunHint = false
+    @State private var tabOverflow = TabOverflowEdges()
     var body: some View {
         VStack(spacing: 8) {
-            GlassEffectContainer(spacing: 6) {
+            Group {
             HStack(spacing: 8) {
                 GeometryReader { tabGeometry in
+                ScriptTabClipContainer(edges: tabOverflow) {
+                GlassEffectContainer(spacing: 6) {
                 ScrollViewReader { proxy in
                 ScrollView(.horizontal) {
                     HStack(spacing: 0) {
@@ -23,14 +26,39 @@ struct QueryEditorView: View {
                                           rename: { store.nameScript(script.id) })
                                 .id(script.id)
                         }
-                    }.padding(3)
+                    }.padding(3).font(.system(size: 12, weight: .medium))
                 }.scrollIndicators(.hidden)
+                    .frame(width: tabGeometry.size.width, height: 44)
+                    .onScrollGeometryChange(for: TabOverflowEdges.self) { geometry in
+                        TabOverflowEdges(geometry: geometry)
+                    } action: { _, edges in tabOverflow = edges }
+                    .scrollEdgeEffectHidden()
                     .background(.thinMaterial, in: Capsule())
+                    .clipShape(Capsule())
+                    .contentShape(Capsule())
                     .onChange(of: store.selectedScriptID, initial: true) { _, id in
                         if let id { proxy.scrollTo(id, anchor: .center) }
                     }
+                    .onChange(of: store.openScripts.map(\.id)) { _, _ in
+                        // Closing changes native content bounds after this update.
+                        // Reveal the restored selection after that layout settles.
+                        let selected = store.selectedScriptID
+                        DispatchQueue.main.async {
+                            if let selected { proxy.scrollTo(selected, anchor: .center) }
+                        }
+                    }
+                    .onChange(of: tabGeometry.size.width) { _, _ in
+                        let selected = store.selectedScriptID
+                        DispatchQueue.main.async {
+                            if let selected { proxy.scrollTo(selected, anchor: .center) }
+                        }
+                    }
+                }
+                }
                 }
                 }.frame(height: 44)
+                GlassEffectContainer(spacing: 6) {
+                HStack(spacing: 8) {
                 Button { store.nameScript() } label: { QueryGlassControlLabel(symbol: "plus") }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
                 Menu {
                     Section("最近 10 个脚本") {
@@ -48,6 +76,8 @@ struct QueryEditorView: View {
                 .glassEffect(.regular.interactive(), in: Capsule())
                 .help("脚本历史").accessibilityLabel("脚本历史")
                 Button { horizontal.toggle() } label: { QueryGlassControlLabel(symbol: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1") }.help("切换上下或左右分栏")
+                }
+                }.fixedSize()
             }.buttonStyle(.plain).tint(.primary).controlSize(.regular)
                 .font(.system(size: 12, weight: .medium))
                 .padding(.horizontal, 4)
@@ -210,6 +240,99 @@ struct QueryEditorView: View {
 
 // A nested system split view must use the query pane's bounds, rather than
 // expanding into NavigationSplitView's sidebar safe area on macOS 27.
+private struct ScriptTabClipContainer<Content: View>: NSViewRepresentable {
+    var edges: TabOverflowEdges
+    @ViewBuilder var content: () -> Content
+    func makeNSView(context: Context) -> ScriptTabClipView<Content> {
+        ScriptTabClipView(rootView: content())
+    }
+    func updateNSView(_ view: ScriptTabClipView<Content>, context: Context) {
+        view.host.rootView = content()
+        view.edges = edges
+        view.needsLayout = true
+    }
+}
+
+// A native material sibling samples the rendered SwiftUI/glass content, rather
+// than being flattened into that content's own glass rendering pass.
+private final class ScriptTabEdgeEffect: NSVisualEffectView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+private final class ScriptTabClipView<Content: View>: NSView {
+    let host: NSHostingView<Content>
+    private let contentContainer = NSView()
+    private let contentMask = CAGradientLayer()
+    private let leadingEffect = ScriptTabEdgeEffect()
+    private let trailingEffect = ScriptTabEdgeEffect()
+    var edges = TabOverflowEdges()
+
+    init(rootView: Content) {
+        host = NSHostingView(rootView: rootView)
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 22
+        layer?.masksToBounds = true
+        host.safeAreaRegions = []
+        host.sizingOptions = []
+        contentContainer.wantsLayer = true
+        contentContainer.layer?.mask = contentMask
+        contentMask.startPoint = CGPoint(x: 0, y: 0.5)
+        contentMask.endPoint = CGPoint(x: 1, y: 0.5)
+        addSubview(contentContainer)
+        contentContainer.addSubview(host)
+        for effect in [leadingEffect, trailingEffect] {
+            effect.material = .headerView
+            effect.blendingMode = .withinWindow
+            effect.state = .followsWindowActiveState
+            effect.wantsLayer = true
+            effect.setAccessibilityElement(false)
+            let mask = CAGradientLayer()
+            mask.startPoint = CGPoint(x: 0, y: 0.5)
+            mask.endPoint = CGPoint(x: 1, y: 0.5)
+            mask.colors = effect === leadingEffect
+                ? [NSColor.black.cgColor, NSColor.clear.cgColor]
+                : [NSColor.clear.cgColor, NSColor.black.cgColor]
+            effect.layer?.mask = mask
+            addSubview(effect)
+        }
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layout() {
+        super.layout()
+        let width = min(28, bounds.width / 2)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        contentContainer.frame = bounds
+        host.frame = contentContainer.bounds
+        contentMask.frame = contentContainer.bounds
+        let fraction = width / max(1, bounds.width)
+        contentMask.locations = [0, NSNumber(value: fraction), NSNumber(value: 1 - fraction), 1]
+        contentMask.colors = [edges.leading ? NSColor.clear.cgColor : NSColor.black.cgColor,
+                              NSColor.black.cgColor, NSColor.black.cgColor,
+                              edges.trailing ? NSColor.clear.cgColor : NSColor.black.cgColor]
+        leadingEffect.frame = NSRect(x: bounds.minX, y: bounds.minY, width: width, height: bounds.height)
+        trailingEffect.frame = NSRect(x: bounds.maxX - width, y: bounds.minY, width: width, height: bounds.height)
+        leadingEffect.isHidden = !edges.leading
+        trailingEffect.isHidden = !edges.trailing
+        leadingEffect.layer?.mask?.frame = leadingEffect.bounds
+        trailingEffect.layer?.mask?.frame = trailingEffect.bounds
+        CATransaction.commit()
+    }
+}
+
+private struct TabOverflowEdges: Equatable {
+    var leading = false
+    var trailing = false
+    init() {}
+    init(geometry: ScrollGeometry) {
+        let visible = geometry.visibleRect
+        let hasOverflow = geometry.contentSize.width > visible.width + 1
+        leading = hasOverflow && visible.minX > 1
+        trailing = hasOverflow && visible.maxX < geometry.contentSize.width - 1
+    }
+}
+
 private struct ScriptTabItem: View {
     let title: String
     var width: CGFloat = 156
