@@ -15,4 +15,10 @@
 
 本机为 Apple Silicon、macOS 27 beta、Xcode 27 beta 6。本轮未重复 macOS 26 真机、外部 PostgreSQL/MongoDB、真实模型供应商或生产客户端自动更新安装全链路验收，不把本地模拟或 Debug 证据视为这些验证通过。未访问用户真实数据库或发送真实 API 请求。
 
-公证、公开下载和线上流水线结果在完成后补记。
+## 分发信任验证
+
+正式 app 公证 Accepted：`f05b36fa-d338-4b74-98b0-c2994c7e31d7`；DMG 公证 Accepted：`5d61f440-d437-43fd-9af9-3a623c64e2c3`。app 和 DMG 均通过 staple validate 与 Gatekeeper（Notarized Developer ID）。首次 DMG 上传连接超时，改为非加速 S3 上传后成功，未修改产物。
+
+最终 DMG 生成 Sparkle Ed25519 签名清单，版本 0.5.1 / build 7，最低 macOS 26、arm64，附件大小 10,055,202 字节。清单复用现有更新账户并与 app 内公钥匹配。
+
+公开下载和线上流水线结果在发布后补记。
