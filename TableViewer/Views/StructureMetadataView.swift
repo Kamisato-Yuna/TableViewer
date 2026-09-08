@@ -8,6 +8,7 @@ struct StructureMetadataView: View {
     @State private var filter = "全部"
     @State private var search = ""
     @State private var showDDL = false
+    @State private var copiedDefinition = false
     @State private var error: String?
     private var fields: [SchemaField] {
         metadata.fields.filter { field in
@@ -50,7 +51,16 @@ struct StructureMetadataView: View {
         }.padding(24)
         .sheet(isPresented: $showDDL) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack { Text(String(localized: kind == .mongodb ? "集合定义" : "DDL")).font(.headline); Spacer(); Button("导出") { exportDefinition() }; Button("完成") { showDDL = false }.keyboardShortcut(.cancelAction) }
+                HStack { Text(String(localized: kind == .mongodb ? "集合定义" : "DDL")).font(.headline); Spacer(); Button(copiedDefinition ? String(localized: "已复制") : String(localized: "复制"), systemImage: copiedDefinition ? "checkmark" : "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    copiedDefinition = NSPasteboard.general.setString(metadata.ddl, forType: .string)
+                }.disabled(metadata.ddl.isEmpty)
+                .task(id: copiedDefinition) {
+                    guard copiedDefinition else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    if !Task.isCancelled { copiedDefinition = false }
+                }
+                Button("导出") { exportDefinition() }.disabled(metadata.ddl.isEmpty); Button("完成") { showDDL = false }.keyboardShortcut(.cancelAction) }
                 ScrollView([.horizontal, .vertical]) { Text(metadata.ddl).font(.system(.body, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
             }.padding(24).frame(minWidth: 640, minHeight: 420)
         }

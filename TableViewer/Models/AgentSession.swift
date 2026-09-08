@@ -8,12 +8,21 @@ import Observation
     var updatedAt = Date()
     var lastInputAt: Date?
     var historyDate: Date { lastInputAt ?? createdAt }
-    var archived = false { didSet { changed(true) } }
+    var archived = false { didSet { if archived { automaticResultsConfiguration = nil }; changed(true) } }
     var connection: AgentContext?
     @ObservationIgnored var onChange: ((Bool) -> Void)?
     private func changed(_ immediate: Bool = false) { updatedAt = Date(); onChange?(immediate) }
     typealias Completion = @Sendable (AgentConfiguration, [AgentMessage], AgentContext, @escaping @Sendable (String) async -> Void) async throws -> AgentMessage
-    var configuration = AgentConfiguration.load()
+    var configuration = AgentConfiguration.load() { didSet { if configuration != oldValue { automaticResultsConfiguration = nil } } }
+    var automaticResultsConfiguration: AgentConfiguration? { didSet { changed(true) } }
+    var automaticallySendsResults: Bool { automaticResultsConfiguration == configuration && providerMatches }
+    func authorizeAutomaticResults(_ enabled: Bool) { automaticResultsConfiguration = enabled ? configuration : nil }
+    private func sendAutomaticResultsIfReady() {
+        guard automaticallySendsResults, canContinue,
+              pendingActions.allSatisfy({ [.completed, .rejected].contains($0.state) }),
+              let context = requestContext else { return }
+        continueWithResults(context: context)
+    }
     var input = "" { didSet { changed(false) } }
     var messages: [AgentMessage] = [] {
         didSet {
@@ -72,11 +81,13 @@ import Observation
         return ""
     }
     func reset() {
+        automaticResultsConfiguration = nil
         generation += 1; task?.cancel(); task = nil
         messages = []; actions = []; running = false; error = nil
         responseID = nil; responseFallback = nil; requestHistory = []; requestContext = nil
     }
     func stop() {
+        automaticResultsConfiguration = nil
         guard running else { return }
         generation += 1; task?.cancel(); task = nil; running = false
         if let index = messages.firstIndex(where: { $0.id == responseID }) {
@@ -123,6 +134,7 @@ import Observation
         guard let index = actions.firstIndex(where: { $0.id == id }), actions[index].state == .awaitingApproval else { return }
         actions[index].outcome = String(localized: "用户拒绝此操作。未执行查询。")
         actions[index].state = .rejected
+        sendAutomaticResultsIfReady()
     }
     func setAnswerDraft(_ id: String, text: String) {
         guard let index = actions.firstIndex(where: { $0.id == id }), actions[index].state == .awaitingApproval else { return }
@@ -147,6 +159,7 @@ import Observation
         guard !answer.isEmpty, let index = actions.firstIndex(where: { $0.id == id }), actions[index].question != nil, actions[index].state == .awaitingApproval else { return }
         actions[index].outcome = String(answer.prefix(24_000))
         actions[index].state = .completed
+        sendAutomaticResultsIfReady()
     }
     func beginExecution(_ id: String, connectionID: UUID) -> AgentAction? {
         guard !archived, !actions.contains(where: { $0.state == .executing }), let index = actions.firstIndex(where: { $0.id == id }), actions[index].connectionID == connectionID,
@@ -158,6 +171,7 @@ import Observation
         guard let index = actions.firstIndex(where: { $0.id == id }), actions[index].state == .executing else { return }
         actions[index].outcome = String(output.prefix(24_000)) + (output.count > 24_000 ? String(localized: "\n…结果已截断。") : "")
         actions[index].state = failed ? .failed : .completed
+        sendAutomaticResultsIfReady()
     }
     func retry(context: AgentContext) {
         guard canRetry, let original = requestContext, original.connectionID == context.connectionID, let id = responseID else { return }

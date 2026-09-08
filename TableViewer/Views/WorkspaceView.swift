@@ -116,6 +116,19 @@ struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 12) {
                         Text("让 Agent").font(.headline)
+                        if !store.currentDatabaseSessions.isEmpty {
+                            Menu("继续会话", systemImage: "bubble.left.and.bubble.right") {
+                                ForEach(store.currentDatabaseSessions.sorted { ($0.running || !$0.pendingActions.isEmpty) && !($1.running || !$1.pendingActions.isEmpty) }) { session in
+                                    Button {
+                                        guard store.allowNavigation() else { return }
+                                        store.agentLibrary.open(session.id); store.tab = .agent
+                                    } label: {
+                                        Text(session.title)
+                                        if !session.phase.isEmpty { Text(session.phase) }
+                                    }
+                                }
+                            }.fixedSize().controlSize(.small)
+                        }
                         ScrollView(.horizontal) { AgentExampleButtons(action: store.startAgentExample) }
                     }.padding(.horizontal, 24).padding(.top, 20).disabled(store.busy)
                     ObjectBrowserView(objects: store.objects, kind: store.active?.kind ?? .sqlite, openObject: { object in Task { await store.chooseObject(object) } })
@@ -268,7 +281,7 @@ struct SidebarView: View {
             }.padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 23)
             List {
                 Section {
-                    ForEach(store.profiles) { profile in
+                    ForEach(store.visibleProfiles) { profile in
                         Button { Task { await store.connect(profile) } } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: profile.kind.symbol).font(.system(size: 17)).foregroundStyle(profile.kind == .mongodb ? .green : .accentColor).frame(width: 25)
@@ -287,6 +300,16 @@ struct SidebarView: View {
                                 Button("移除连接", systemImage: "minus.circle", role: .destructive) { store.removingProfile = profile }
                             }
                         }
+                    }
+                    if store.showDemoVisibilitySuggestion && store.active?.isDemo == false {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("已添加数据库，可以隐藏示例数据库。").font(.caption)
+                            Button("隐藏示例数据库") { store.chooseDemoVisibility(hidden: true) }
+                            Button("继续显示") { store.chooseDemoVisibility(hidden: false) }
+                        }.padding(.vertical, 5)
+                    }
+                    if store.demoHidden && store.hasUserConnections {
+                        Button("显示示例数据库", systemImage: "eye") { store.chooseDemoVisibility(hidden: false) }
                     }
                 } header: { Text("连接").font(.system(size: 10, weight: .semibold)).tracking(1) }
                 if store.active != nil {

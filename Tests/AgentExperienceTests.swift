@@ -77,7 +77,64 @@ actor ControlledCompletion {
         try check(ConnectionVault.service(for: "local.yuna.TableViewer") == "local.yuna.TableViewer.connections", "production Keychain namespace stays unchanged")
         try check(ConnectionVault.service(for: "local.yuna.TableViewer.Acceptance040") != ConnectionVault.service(for: "local.yuna.TableViewer"), "test bundle isolates fixed Agent credential ID")
     }
+    @MainActor static func automaticResultTests() async throws {
+        let context = AgentContext(connectionID: UUID(), connectionName: "Synthetic Auto Results", kind: .sqlite)
+        let control = ControlledCompletion()
+        let session = AgentSession(complete: { _, messages, _, delta in try await control.complete(messages, delta: delta) })
+        session.configuration = AgentConfiguration(baseURL: "http://127.0.0.1:1", model: "fixture")
+        session.input = "synthetic"; session.send(context: context)
+        try await eventually { await control.count == 1 }
+        await control.succeed(0, tool("execute_query", #"{"query":"SELECT 1"}"#))
+        try await eventually { !session.running }
+        let first = session.pendingActions[0]
+        _ = session.beginExecution(first.id, connectionID: context.connectionID)
+        session.resolve(first.id, output: "1", failed: false)
+        try check(!session.running && !first.shared, "results remain local by default")
+        session.authorizeAutomaticResults(true)
+        session.continueWithResults(context: context)
+        try await eventually { await control.count == 2 }
+        var batch = tool("execute_query", #"{"query":"SELECT 2"}"#)
+        batch.toolCalls!.append(AgentToolCall(id: "question", function: AgentFunction(name: "ask_user", arguments: #"{"question":"范围？","options":["一","二"]}"#)))
+        await control.succeed(1, batch)
+        try await eventually { !session.running }
+        let query = session.pendingActions[0], question = session.pendingActions[1]
+        _ = session.beginExecution(query.id, connectionID: context.connectionID)
+        session.resolve(query.id, output: "2", failed: false)
+        try check(!session.running && session.pendingActions.count == 2, "automatic results cannot skip unanswered question")
+        session.answer(question.id, text: "一")
+        try await eventually { await control.count == 3 }
+        session.resolve(query.id, output: "duplicate", failed: false)
+        session.continueWithResults(context: context)
+        try check(session.messages.filter { $0.role == "tool" }.count == 3, "multi-tool batch sent exactly once")
+        await control.succeed(2, tool("execute_query", #"{"query":"SELECT 3"}"#))
+        try await eventually { !session.running }
+        try check(session.pendingActions[0].state == .awaitingApproval, "automatic send does not approve database execution")
+        let restored = StoredAgentSession(session).restore()
+        try check(restored.automaticResultsConfiguration == session.configuration, "session authorization persists")
+        var oldJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(StoredAgentSession(session))) as! [String: Any]
+        oldJSON.removeValue(forKey: "automaticResultsConfiguration")
+        let old = try JSONDecoder().decode(StoredAgentSession.self, from: JSONSerialization.data(withJSONObject: oldJSON)).restore()
+        try check(old.automaticResultsConfiguration == nil && AgentSession().automaticResultsConfiguration == nil, "old archive and new session default off")
+        session.authorizeAutomaticResults(false)
+        let next = session.pendingActions[0]
+        _ = session.beginExecution(next.id, connectionID: context.connectionID)
+        session.resolve(next.id, output: "3", failed: false)
+        try check(!session.running && session.canContinue, "revocation leaves next result local")
+        session.authorizeAutomaticResults(true)
+        session.actions.append(AgentAction(call: AgentToolCall(id: "failure", function: AgentFunction(name: "execute_query", arguments: #"{"query":"SELECT 4"}"#)), messageID: UUID(), connectionID: context.connectionID, connectionName: context.connectionName))
+        let failing = session.pendingActions.last!
+        _ = session.beginExecution(failing.id, connectionID: context.connectionID)
+        session.resolve(failing.id, output: "synthetic failure", failed: true)
+        try check(!session.running && session.canContinue, "failed result requires explicit sending despite authorization")
+        session.authorizeAutomaticResults(true); session.configuration.model = "changed"
+        try check(!session.automaticallySendsResults, "API configuration change invalidates authorization")
+        session.authorizeAutomaticResults(true); session.stop()
+        try check(!session.automaticallySendsResults, "stop revokes authorization")
+        session.authorizeAutomaticResults(true); session.archived = true; session.archived = false
+        try check(!session.automaticallySendsResults, "archive and restore cannot reactivate authorization")
+    }
     @MainActor static func main() async throws {
+        try await automaticResultTests()
         try await approvalTests()
         let editor = ComposerTextView()
         var submits = 0

@@ -53,6 +53,8 @@ actor ReplyHold {
         }, scripts: ScriptLibrary(directory: directory.appendingPathComponent("Scripts")))
         store.profiles = [a,b]
         await store.connect(a)
+        try check(library.sessions.isEmpty, "connecting alone does not create an Agent session")
+        store.newAgentSession()
         let initial = library.selected!
         let schemaCall = AgentToolCall(id: "schema-test", function: AgentFunction(name: "inspect_schema", arguments: "{}"))
         let schemaAction = AgentAction(call: schemaCall, messageID: UUID(), connectionID: a.id, connectionName: a.name)
