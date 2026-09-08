@@ -26,7 +26,7 @@ struct AgentHistoryView: View {
                             Text(session.title).font(.headline).lineLimit(2)
                             Text(verbatim: "\(session.connection?.connectionName ?? "") · \(session.connection?.kind.rawValue ?? "")").font(.caption).foregroundStyle(.secondary)
                             if !session.phase.isEmpty { Text(session.phase).font(.caption).foregroundStyle(.tint) }
-                            Text(session.updatedAt, style: .date).font(.caption2).foregroundStyle(.secondary)
+                            Text(session.historyDate, style: .date).font(.caption2).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button("打开") { store.agentLibrary.open(session.id); store.tab = .agent; dismiss() }
@@ -54,5 +54,51 @@ struct AgentHistoryView: View {
             }
         }.padding(24).frame(width: 720, height: 580)
             .onAppear { connectionID = store.active?.id }
+    }
+}
+
+struct AgentRecentSessionsView: View {
+    @Bindable var store: WorkspaceStore
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("最近会话").font(.headline)
+            Text(store.active?.name ?? "").font(.caption).foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(store.currentDatabaseSessions.prefix(10))) { session in
+                    Button { store.agentLibrary.open(session.id) } label: {
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(spacing: 4) {
+                                Circle().fill(session.id == store.agent?.id ? Color.accentColor : Color.secondary.opacity(0.4)).frame(width: 7, height: 7)
+                                Rectangle().fill(.quaternary).frame(width: 1)
+                            }.frame(width: 8)
+                            VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(session.title).lineLimit(2)
+                                Spacer()
+                                if session.id == store.agent?.id { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                            }
+                            if !session.phase.isEmpty { Text(session.phase).font(.caption).foregroundStyle(.secondary) }
+                            // Stable timestamps avoid ten per-second text updates while the panel animates.
+                            Text(session.historyDate, format: .dateTime.month().day().hour().minute()).font(.caption2).foregroundStyle(.secondary)
+                            }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(session.id == store.agent?.id ? Color.accentColor.opacity(0.09) : Color.primary.opacity(0.035), in: .rect(cornerRadius: 12))
+                        }.fixedSize(horizontal: false, vertical: true).contentShape(.rect)
+                    }.buttonStyle(.plain)
+                }
+                }
+            }
+        }.padding(16)
+    }
+}
+
+struct AgentExampleButtons: View {
+    var action: (String) -> Void
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach([String(localized: "帮我了解当前数据库"), String(localized: "写一个分页查询"), String(localized: "检查索引使用情况")], id: \.self) { prompt in
+                Button(prompt) { action(prompt) }
+            }
+        }.buttonStyle(.glass).controlSize(.small).font(.system(size: 11))
     }
 }

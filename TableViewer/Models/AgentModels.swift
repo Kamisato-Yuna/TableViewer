@@ -31,6 +31,25 @@ struct AgentToolCall: Codable, Identifiable, Sendable, Equatable {
     var type = "function"
     var function: AgentFunction
 }
+struct AgentTokenUsage: Codable, Sendable {
+    var input: Int?
+    var output: Int?
+    var total: Int?
+    init?(_ raw: [String: Any]) {
+        input = (raw["prompt_tokens"] as? Int).flatMap { $0 >= 0 ? $0 : nil }
+        output = (raw["completion_tokens"] as? Int).flatMap { $0 >= 0 ? $0 : nil }
+        total = (raw["total_tokens"] as? Int).flatMap { $0 >= 0 ? $0 : nil }
+        if input == nil && output == nil && total == nil { return nil }
+    }
+    var display: String {
+        var parts: [String] = []
+        if let input { parts.append(String(localized: "输入") + " \(input)") }
+        if let output { parts.append(String(localized: "输出") + " \(output)") }
+        if let total { parts.append(String(localized: "合计") + " \(total)") }
+        return parts.joined(separator: " · ") + " tokens"
+    }
+}
+
 struct AgentMessage: Codable, Identifiable, Sendable {
     var id = UUID()
     var role: String
@@ -39,6 +58,7 @@ struct AgentMessage: Codable, Identifiable, Sendable {
     var toolCallID: String?
     // Presentation only: never sent to the provider.
     var delivery: AgentDelivery = .complete
+    var usage: AgentTokenUsage? = nil
     enum CodingKeys: String, CodingKey { case role, content; case toolCalls = "tool_calls"; case toolCallID = "tool_call_id" }
 }
 

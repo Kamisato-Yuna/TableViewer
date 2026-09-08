@@ -1,0 +1,188 @@
+{
+  "process_id": 10559,
+  "intervals": [
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 12.205468,
+      "end_seconds": 12.463633,
+      "duration_ms": 258.165,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 12.207054,
+      "end_seconds": 12.463639,
+      "duration_ms": 256.585,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 12.947368,
+      "end_seconds": 13.206824,
+      "duration_ms": 259.456,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 12.949141,
+      "end_seconds": 13.206829,
+      "duration_ms": 257.687,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 13.638886,
+      "end_seconds": 13.896964,
+      "duration_ms": 258.079,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 13.640567,
+      "end_seconds": 13.89697,
+      "duration_ms": 256.402,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 14.378114,
+      "end_seconds": 14.625647,
+      "duration_ms": 247.533,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 14.379635,
+      "end_seconds": 14.625654,
+      "duration_ms": 246.019,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 15.022228,
+      "end_seconds": 15.28022,
+      "duration_ms": 257.991,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 15.023953,
+      "end_seconds": 15.280224,
+      "duration_ms": 256.271,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 15.73805,
+      "end_seconds": 15.988696,
+      "duration_ms": 250.646,
+      "max_overlapping_hitch_ms": 16.667
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 15.739524,
+      "end_seconds": 15.988702,
+      "duration_ms": 249.178,
+      "max_overlapping_hitch_ms": 16.667
+    },
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 16.38899,
+      "end_seconds": 16.648574,
+      "duration_ms": 259.583,
+      "max_overlapping_hitch_ms": 33.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 16.39087,
+      "end_seconds": 16.64858,
+      "duration_ms": 257.71,
+      "max_overlapping_hitch_ms": 33.333
+    },
+    {
+      "name": "Agent Reading Column",
+      "start_seconds": 17.130695,
+      "end_seconds": 17.38319,
+      "duration_ms": 252.494,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 17.132579,
+      "end_seconds": 17.383196,
+      "duration_ms": 250.617,
+      "max_overlapping_hitch_ms": 25.0
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 20.514413,
+      "end_seconds": 20.755346,
+      "duration_ms": 240.932,
+      "max_overlapping_hitch_ms": 8.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 21.089933,
+      "end_seconds": 21.328882,
+      "duration_ms": 238.949,
+      "max_overlapping_hitch_ms": 8.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 21.631425,
+      "end_seconds": 21.867521,
+      "duration_ms": 236.095,
+      "max_overlapping_hitch_ms": 8.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 22.2067,
+      "end_seconds": 22.44856,
+      "duration_ms": 241.861,
+      "max_overlapping_hitch_ms": 8.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 22.773235,
+      "end_seconds": 23.012125,
+      "duration_ms": 238.89,
+      "max_overlapping_hitch_ms": 8.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 23.339936,
+      "end_seconds": 23.576572,
+      "duration_ms": 236.636,
+      "max_overlapping_hitch_ms": 8.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 23.889836,
+      "end_seconds": 24.128827,
+      "duration_ms": 238.991,
+      "max_overlapping_hitch_ms": 8.333
+    },
+    {
+      "name": "Sidebar",
+      "start_seconds": 24.473142,
+      "end_seconds": 24.708982,
+      "duration_ms": 235.84,
+      "max_overlapping_hitch_ms": 8.333
+    }
+  ],
+  "max_animation_hitch_ms": 33.333,
+  "long_hitches_outside_animation": [
+    [
+      12.629556,
+      108.333
+    ],
+    [
+      18.354561,
+      758.337
+    ],
+    [
+      19.171229,
+      175.0
+    ]
+  ]
+}

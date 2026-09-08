@@ -3,10 +3,11 @@ import AppKit
 
 struct AgentView: View {
     @Bindable var store: WorkspaceStore
+    var readingWidth: CGFloat = 920
     var body: some View {
         VStack(spacing: 0) {
             if let failure = store.agentLibrary.persistenceError { Text(failure).font(.caption).foregroundStyle(.orange).padding(10) }
-            if let agent = store.agent { AgentConversationView(store: store, agent: agent).id(agent.id) }
+            if let agent = store.agent { AgentConversationView(store: store, agent: agent, readingWidth: readingWidth).id(agent.id) }
             else {
                 ContentUnavailableView("会话历史", systemImage: "bubble.left.and.bubble.right", description: Text("创建会话后，消息和操作进度会保存在本机。"))
                 HStack { Button("新会话", systemImage: "plus") { store.newAgentSession() }; Button("所有会话") { store.showAgentHistory = true } }.padding()
@@ -18,9 +19,11 @@ struct AgentView: View {
 private struct AgentConversationView: View {
     @Bindable var store: WorkspaceStore
     @Bindable var agent: AgentSession
+    let readingWidth: CGFloat
     @State private var followsBottom = true
     @State private var userScrolling = false
     @State private var scrollRequest = 0
+    @State private var hoveredMessageID: UUID?
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -46,12 +49,6 @@ private struct AgentConversationView: View {
                     }
                 }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.bottom, 12)
-            HStack {
-                Picker("执行审批", selection: $agent.approvalMode) {
-                    ForEach(AgentApprovalMode.allCases) { mode in Text(mode.title).tag(mode) }
-                }.frame(maxWidth: 300).disabled(agent.running || !agent.pendingActions.isEmpty)
-                Text("结果始终留在本机，发送给 API 仍需确认。").font(.caption).foregroundStyle(.secondary)
-            }.padding(.horizontal, 24).padding(.bottom, 12)
             if !agent.ready {
                 HStack {
                     Label("先配置 API 地址和模型，即可开始对话。", systemImage: "sparkles")
@@ -80,7 +77,7 @@ private struct AgentConversationView: View {
                             }
                         }
                         Color.clear.frame(height: 1).id("agent-bottom")
-                    }.padding(24).frame(maxWidth: 920).frame(maxWidth: .infinity)
+                    }.padding(24).frame(width: readingWidth).frame(maxWidth: .infinity)
                 }
                 .onScrollPhaseChange { _, phase in userScrolling = phase == .interacting || phase == .decelerating || phase == .tracking }
                 .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -95,28 +92,46 @@ private struct AgentConversationView: View {
                     if !followsBottom { Button("回到底部", systemImage: "arrow.down") { scrollToBottom() }.buttonStyle(.glass).padding(16) }
                 }
             }
-            Divider()
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Toggle("附带当前表结构", isOn: $agent.shareSchema).toggleStyle(.checkbox).font(.system(size: 11)).disabled(agent.running || !agent.pendingActions.isEmpty || agent.archived || store.active?.id != agent.connection?.connectionID)
-                    Spacer()
-                    Text(URLComponents(string: agent.configuration.baseURL)?.host ?? String(localized: "尚未配置 API")).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                }
-                HStack(alignment: .bottom, spacing: 12) {
+            GlassEffectContainer {
+                VStack(alignment: .leading, spacing: 12) {
                     AgentComposer(text: $agent.input, canSubmit: agent.canSend && !store.busy, submit: send)
-                        .frame(height: 76).padding(8)
-                        .overlay(alignment: .topLeading) { if agent.input.isEmpty { Text("描述你想完成的事情…").font(.system(size: 13)).foregroundStyle(.secondary).padding(12).allowsHitTesting(false) } }
-                        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 12))
-                    VStack(spacing: 8) {
-                        if agent.running { Button("停止", systemImage: "stop.fill") { agent.stop() }.buttonStyle(.glass) }
-                        Button(agent.running ? String(localized: "停止并发送补充") : String(localized: "发送"), systemImage: "arrow.up", action: send)
-                            .buttonStyle(.glassProminent).disabled(!agent.canSend || store.busy)
-                    }
-                }
-                Text(agent.running ? String(localized: "可先写草稿。⌘↩ 停止当前生成，并携带已有回复与补充重新请求。") : String(localized: "⌘↩ 发送 · Return 换行 · 等待批准时仍可写草稿"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                Text("发送内容包含对话历史\(agent.shareSchema ? String(localized: "及当前表结构") : "")；不会自动发送记录、密码或连接 URI。").font(.system(size: 11)).foregroundStyle(.secondary)
-            }.padding(.horizontal, 24).padding(.vertical, 16)
+                        .frame(height: 76)
+                        .overlay(alignment: .topLeading) {
+                            if agent.input.isEmpty { Text("描述你想完成的事情…").font(.system(size: 13)).foregroundStyle(.secondary).padding(4).allowsHitTesting(false) }
+                        }
+                    HStack(spacing: 10) {
+                        Menu {
+                            Toggle("附带当前表结构", isOn: $agent.shareSchema)
+                                .disabled(agent.running || !agent.pendingActions.isEmpty || agent.archived || store.active?.id != agent.connection?.connectionID)
+                        } label: { Image(systemName: agent.shareSchema ? "plus.circle.fill" : "plus") }
+                        .help("附带当前表结构")
+                        Picker("执行审批", selection: $agent.approvalMode) {
+                            ForEach(AgentApprovalMode.allCases) { mode in Text(mode.title).tag(mode) }
+                        }.labelsHidden().fixedSize().disabled(agent.running || !agent.pendingActions.isEmpty)
+                        Button { agent.showSettings = true } label: {
+                            HStack(spacing: 4) {
+                                Text(agent.ready ? agent.configuration.model : String(localized: "API 设置")).lineLimit(1)
+                                Image(systemName: "chevron.down").font(.caption2)
+                            }
+                        }.help(URLComponents(string: agent.configuration.baseURL)?.host ?? String(localized: "尚未配置 API"))
+                            .disabled(agent.running || store.busy)
+                        Spacer(minLength: 4)
+                        if agent.running { Button("停止", systemImage: "stop.fill") { agent.stop() }.labelStyle(.iconOnly).buttonStyle(.glass) }
+                        Button(action: send) {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 19, weight: .semibold))
+                                .frame(width: 28, height: 28)
+                        }
+                            .buttonStyle(.glassProminent).buttonBorderShape(.circle)
+                            .controlSize(.large).tint(.accentColor)
+                            .accessibilityLabel(agent.running ? String(localized: "停止并发送补充") : String(localized: "发送"))
+                            .help(agent.running ? String(localized: "停止并发送补充") : String(localized: "发送"))
+                            .disabled(!agent.canSend || store.busy)
+                    }.buttonStyle(.borderless).controlSize(.small)
+                }.padding(16)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 24))
+            }.frame(width: readingWidth - 48).padding(.horizontal, 24).padding(.top, 8).padding(.bottom, 16)
+
         }.sheet(isPresented: $agent.showSettings) { AgentSettingsView(agent: agent, saved: { store.newAgentSession() }) }
     }
     private func scrollToBottom() { followsBottom = true; scrollRequest += 1 }
@@ -126,13 +141,15 @@ private struct AgentConversationView: View {
             Image(systemName: "sparkles").font(.system(size: 36, weight: .light)).foregroundStyle(.tint)
             Text("一个懂数据库的搭档。").font(.system(size: 25, weight: .semibold, design: .rounded))
             Text("解释结构、编写查询、一起排查问题。数据库操作遵循当前审批级别，结果共享由你确认。").font(.system(size: 12)).foregroundStyle(.secondary)
-            HStack(spacing: 10) {
-                prompt(String(localized: "帮我了解当前数据库")); prompt(String(localized: "写一个分页查询")); prompt(String(localized: "检查索引使用情况"))
-            }
+            AgentExampleButtons { agent.input = $0 }
+            VStack(alignment: .leading, spacing: 5) {
+                Text("⌘↩ 发送 · Return 换行 · 等待批准时仍可写草稿")
+                Text("结果始终留在本机，发送给 API 仍需确认。")
+                Text("发送内容包含对话历史\(agent.shareSchema ? String(localized: "及当前表结构") : "")；不会自动发送记录、密码或连接 URI。")
+            }.font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 4)
             if !agent.ready { Button("连接 OpenAI-compatible API", systemImage: "plus") { agent.showSettings = true }.buttonStyle(.glassProminent) }
         }.padding(.vertical, 35)
     }
-    private func prompt(_ text: String) -> some View { Button(text) { agent.input = text }.buttonStyle(.glass).controlSize(.small).font(.system(size: 11)) }
     private func deliveryLabel(_ message: AgentMessage) -> String {
         if message.delivery == .interrupted { return String(localized: "生成已中断 · 可手动继续") }
         if message.content?.isEmpty != false {
@@ -171,7 +188,13 @@ private struct AgentConversationView: View {
                     }.disabled(!agent.canRetry || store.busy)
                 }
             }
+            if message.role == "assistant" {
+                Text(message.usage?.display ?? String(localized: "未提供用量"))
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    .opacity(hoveredMessageID == message.id ? 1 : 0)
+            }
         }.font(.system(size: 13)).padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            .onHover { hoveredMessageID = $0 ? message.id : nil }
             .background(message.role == "user" ? Color.accentColor.opacity(0.07) : Color.primary.opacity(0.025), in: .rect(cornerRadius: 13))
     }
 }

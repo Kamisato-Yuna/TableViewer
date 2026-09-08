@@ -6,6 +6,8 @@ import Observation
     var title = String(localized: "新会话") { didSet { changed(true) } }
     var createdAt = Date()
     var updatedAt = Date()
+    var lastInputAt: Date?
+    var historyDate: Date { lastInputAt ?? createdAt }
     var archived = false { didSet { changed(true) } }
     var connection: AgentContext?
     @ObservationIgnored var onChange: ((Bool) -> Void)?
@@ -13,7 +15,14 @@ import Observation
     typealias Completion = @Sendable (AgentConfiguration, [AgentMessage], AgentContext, @escaping @Sendable (String) async -> Void) async throws -> AgentMessage
     var configuration = AgentConfiguration.load()
     var input = "" { didSet { changed(false) } }
-    var messages: [AgentMessage] = [] { didSet { changed(false) } }
+    var messages: [AgentMessage] = [] {
+        didSet {
+            if messages.contains(where: { message in message.role == "user" && !oldValue.contains(where: { $0.id == message.id }) }) {
+                lastInputAt = Date()
+            }
+            changed(false)
+        }
+    }
     var actions: [AgentAction] = [] { didSet { changed(true) } }
     var running = false { didSet { changed(true) } }
     var error: String? { didSet { changed(true) } }
