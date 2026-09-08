@@ -21,4 +21,14 @@
 
 最终 DMG 生成 Sparkle Ed25519 签名清单，版本 0.5.1 / build 7，最低 macOS 26、arm64，附件大小 10,055,202 字节。清单复用现有更新账户并与 app 内公钥匹配。
 
-公开下载和线上流水线结果在发布后补记。
+## 公开发布与下载验证
+
+[PR #26](https://github.com/Kamisato-Yuna/TableViewer/pull/26) 已合并为 `b46f6cce2270fbfb18f0e6295687d8ce23875e6b`。GPG 签名标签 `v0.5.1` 指向 `f8d07ccf3bb30430d846af553d57f511e20ae686`，与构建源码一致；构建后的提交仅补充验收文档。正式 [Release](https://github.com/Kamisato-Yuna/TableViewer/releases/tag/v0.5.1) 于 2026-09-08 06:46:22 UTC 公开，标为 Latest，DMG 和 appcast 均完整上传后发布；0.5.0 标签与两项附件均保留。
+
+- 通过不带认证的 GitHub 公开下载地址获取完整 DMG（HTTP Range 分段下载），10,055,202 字节，与本地正式 DMG 逐字节一致；公开 appcast 与签名清单一致。
+- 下载 DMG 的 Sparkle Ed25519 签名使用 app 内公钥与线上 Pages 清单验证通过；DMG 及只读挂载的 app 均通过 staple validate、Gatekeeper（Notarized Developer ID），app 深层严格签名验证通过，可执行文件与正式构建一致。未替换或启动用户主应用。
+- 正式包独立 QA 副本进一步通过 160 行脚本末尾选区：仅运行 `SELECT 80 AS selected_value;`，结果为 80，末尾选区和结果区同时可见。
+- [PR CI](https://github.com/Kamisato-Yuna/TableViewer/actions/runs/34195777313) 与 [合并后 CI](https://github.com/Kamisato-Yuna/TableViewer/actions/runs/34196030638) 的 source / macOS build and tests 均成功。
+- [Pages 部署](https://github.com/Kamisato-Yuna/TableViewer/actions/runs/34196159580) 成功；真实公开页面显示 0.5.1 下载地址，线上 appcast 与 Release 资产逐字节一致，版本 0.5.1 / build 7。
+
+上述证明公开产物和更新源有效，不等同于生产客户端完成自动安装重启；该全链路仍在前述范围之外。
