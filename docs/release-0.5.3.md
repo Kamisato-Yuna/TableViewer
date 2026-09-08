@@ -28,4 +28,9 @@
 
 ## 最终 build 10 发行验收
 
-扩展修复集成后重新构建、测试、GUI、CI、公证与公开下载验证，证据完成后补齐。
+- 最终源码 `089b71114001c5a239a105343d4843c68d1f47bf`，完整包含扩展提交 `f6c84e0`，版本 0.5.3（10）。PR source/macOS CI 通过（run `34253781931`）。
+- Developer ID Release 重建、668 条双语资源、8 项更新源测试、合成工作台、编辑器交互、原生标签溢出与 SwiftUI 生命周期回归通过。本次未配置 PostgreSQL/MongoDB 端口，明确 SKIP；实现阶段的真实合成服务器证据见扩展报告。
+- 最终包派生独立 bundle `local.yuna.TableViewer.Release053Build10QA` 实际启动：两份 SQLite 合成脚本分别返回 53/10 与 99，A/B/A 切换恢复原结果；上下/左右分栏、深浅色、设置按编辑器上下文打开、字号 16 与行号同步、Escape 返回工作台、侧栏标题顶部和空提示居中通过。标签溢出原生测试覆盖 30 个长标签、窄视口、首尾选择、关闭恢复和两侧离屏命中。用户对最终标签观感的验收保留，不声称与 Finder 完全相同。
+- 最终应用 Apple 公证 Accepted：`f13312a8-9998-4e34-af44-01039992e337`；stapler 与 Gatekeeper 通过。
+- 最终 DMG Apple 公证 Accepted：`39c86a27-d4e9-440c-be79-54c8abcc7e6c`；stapler 与 Gatekeeper 通过。DMG 为 10,272,966 字节，Sparkle 使用既有 Ed25519 密钥签名，更新版本 10。
+- 正式发布与公开下载验证待附件发布后回写。
