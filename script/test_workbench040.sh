@@ -14,4 +14,4 @@ xcrun swiftc -parse-as-library -swift-version 5 -target arm64-apple-macos26.0 -m
   TableViewer/Services/ConnectionVault.swift TableViewer/Services/DatabaseEngine.swift TableViewer/Services/DatabaseSchema.swift TableViewer/Services/ResultExporter.swift \
   TableViewer/Services/AgentToolExecutor.swift TableViewer/Services/OpenAICompatibleClient.swift TableViewer/Services/MongoShellRuntime.swift TableViewer/Services/ShellSession.swift \
   Tests/Workbench040Integration.swift .build/workbench040/MongoBridge.o -o .build/workbench040/Workbench040Integration
-.build/workbench040/Workbench040Integration
+.build/workbench040/Workbench040Integration "$@"

@@ -49,6 +49,11 @@ struct TableViewerApp: App {
                 Button("导出当前结果…") { store.exportCSV() }.disabled(store.displayedResult.columns.isEmpty)
             }
         }
+        Window("全部本地脚本", id: "script-history") {
+            ScriptLibraryView(store: store).tint(.accentColor)
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
         Settings { SettingsView(updater: updater) }
     }
 }
@@ -90,6 +95,7 @@ struct SettingsView: View {
     @AppStorage("editorLigatures") private var ligatures = false
     @AppStorage("editorLineNumbers") private var lineNumbers = true
     @AppStorage("openInspectorOnSelection") private var openInspector = false
+    @AppStorage("showAutomaticEstimates") private var showAutomaticEstimates = true
     var body: some View {
         Form {
             Picker("语言 / Language", selection: $language) {
@@ -110,6 +116,9 @@ struct SettingsView: View {
                 Toggle("字体连字", isOn: $ligatures)
                 Toggle("显示行号", isOn: $lineNumbers)
                 Toggle("选择记录时打开属性栏", isOn: $openInspector)
+                Toggle("默认显示自动估算栏", isOn: $showAutomaticEstimates)
+                Text("隐藏估算栏时不自动估算。可使用筛选栏前的按钮临时显示或隐藏。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             LabeledContent("凭据存储", value: String(localized: "macOS 钥匙串"))
             LabeledContent("每页记录", value: "200")

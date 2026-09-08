@@ -2,6 +2,7 @@ import SwiftUI
 
 struct QueryEditorView: View {
     @Bindable var store: WorkspaceStore
+    @Environment(\.openWindow) private var openWindow
     @AppStorage("queryHorizontal") private var horizontal = false
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +29,18 @@ struct QueryEditorView: View {
                     }
                 }
                 Button { store.nameScript() } label: { Image(systemName: "plus") }.help("新建命名脚本")
-                Button { store.showScripts = true } label: { Image(systemName: "clock.arrow.circlepath") }.help("全部本地脚本")
+                Menu {
+                    Section("最近 10 个脚本") {
+                        let recent = Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))
+                        if recent.isEmpty { Text("暂无最近脚本") }
+                        ForEach(recent) { script in
+                            Button(script.name) { store.openScript(script.id) }
+                        }
+                    }
+                    Divider()
+                    Button("更多历史…") { openWindow(id: "script-history") }
+                } label: { Image(systemName: "clock.arrow.circlepath") }
+                .help("脚本历史").accessibilityLabel("脚本历史")
                 Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1") }.help("切换上下或左右分栏")
             }.controlSize(.small).padding(12).disabled(store.busy)
             if store.selectedScriptID == nil {
@@ -41,7 +53,6 @@ struct QueryEditorView: View {
             }
         }
         .onAppear { if store.selectedScriptID == nil { store.nameScript() } }
-        .sheet(isPresented: $store.showScripts) { ScriptLibraryView(store: store) }
         .alert(store.renamingScriptID == nil ? String(localized: "新建脚本") : String(localized: "重命名脚本"), isPresented: $store.showScriptName) {
             TextField("脚本名称", text: $store.scriptName)
             Button("取消", role: .cancel) {}
@@ -139,22 +150,27 @@ struct QueryEditorView: View {
 
 struct ScriptLibraryView: View {
     @Bindable var store: WorkspaceStore
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(\.openWindow) private var openWindow
     @AppStorage("scriptCleanupDays") private var days = 90
     @AppStorage("scriptAutoCleanup") private var automatic = false
     @State private var deleting = Set<UUID>()
     @State private var confirm = false
     @State private var confirmAutomatic = false
+    private func returnToWorkspace() {
+        dismissWindow(id: "script-history")
+        openWindow(id: "workspace")
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack { Text("全部本地脚本").font(.title2); Spacer(); Button("完成") { dismiss() } }
+            HStack { Text("全部本地脚本").font(.title2); Spacer(); Button("完成") { dismissWindow(id: "script-history") } }
             Text("脚本内容保存为 .sql，显示名称保存在本地目录索引。关闭选项卡会保留脚本；清理会永久删除文件。").font(.caption).foregroundStyle(.secondary)
             List(store.scripts.scripts.sorted { $0.lastUsed > $1.lastUsed }) { script in
                 HStack {
                     VStack(alignment: .leading) { Text(script.name); Text(script.lastUsed.formatted()).font(.caption).foregroundStyle(.secondary) }
                     Spacer()
-                    Button("打开") { store.openScript(script.id); dismiss() }.disabled(script.connectionID != store.active?.id)
-                    Button("重命名…") { dismiss(); store.nameScript(script.id) }
+                    Button("打开") { store.openScript(script.id); returnToWorkspace() }.disabled(script.connectionID != store.active?.id || store.busy || store.hasChanges)
+                    Button("重命名…") { returnToWorkspace(); store.nameScript(script.id) }.disabled(store.busy || store.hasChanges)
                 }
             }
             HStack {
