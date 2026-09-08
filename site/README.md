@@ -49,7 +49,7 @@ cwebp -lossless -m 6 -metadata icc -resize 1440 0 workspace-light.png -o workspa
 cwebp -lossless -m 6 -metadata icc workspace-light.png -o workspace-light-2880.webp
 ```
 
-图标缩为 256×256 后以无损 WebP 保存，满足导航和 112 pt 下载图标的 Retina 展示；`app-icon.png` 保留为设计来源。构建直接复制 `site/assets`，旧 `docs/screenshots` 仍供仓库文档使用，不再作为 Pages 展示来源。
+图标缩为 256×256 后以无损 WebP 保存，满足导航和 112 pt 下载图标的 Retina 展示；favicon 使用独立 64×64 PNG，避免浏览器再次以标签页图标请求 256px 图片；`app-icon.png` 保留为设计来源。构建直接复制 `site/assets`，旧 `docs/screenshots` 仍供仓库文档使用，不再作为 Pages 展示来源。
 
 首张图片由 `<picture>` 的 media/source 与 srcset 选择，与系统外观一致；显式选择仅在当前页面有效，选择“跟随系统”可恢复跟随。切换先等待 `decode()`，再复用缓存中的图片元素替换，旧图保持可见，过期选择不覆盖最新选择，失败时保留旧图并允许重试。只在按钮 pointerenter/focus 时预取它对应的一张图；没有整组预加载。弹窗复用当前 WebP，原始 PNG 只在用户点击原图链接时请求。固定宽高比避免图片切换导致布局跳动。外观控制仍仅改变真实应用截图，保留站点原有浅色 Liquid Glass 设计。
 
