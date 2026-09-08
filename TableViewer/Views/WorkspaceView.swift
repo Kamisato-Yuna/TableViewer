@@ -1,26 +1,24 @@
 import SwiftUI
+import AppKit
+import os
 
 struct WorkspaceView: View {
     @Bindable var store: WorkspaceStore
+    @State private var trailingPanelWidth: CGFloat = 290
+    private var trailingPanelVisible: Bool { store.tab == .agent ? store.showAgentSessions : store.showInspector && WorkspaceTab.basic.contains(store.tab) }
+    @AppStorage("showAutomaticEstimates") private var showAutomaticEstimates = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         NavigationSplitView {
             SidebarView(store: store)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
         } detail: {
-            VStack(spacing: 0) {
-                if store.tab == .agent { AgentView(store: store) }
-                else if store.active != nil { workspace }
-                else { welcome }
-                StatusBar(store: store)
-            }
-            .background(.background)
-            .inspector(isPresented: Binding(get: { store.showInspector && WorkspaceTab.basic.contains(store.tab) }, set: { store.showInspector = $0 })) {
-                InspectorView(store: store)
-                    .inspectorColumnWidth(min: 260, ideal: 290, max: 380)
-            }
+            detail
         }
         .navigationTitle(store.active?.name ?? "TableViewer")
+        .onChange(of: showAutomaticEstimates) { _, visible in
+            Task { await store.setBrowseEstimateVisible(visible) }
+        }
         .navigationSubtitle(store.active.map { String(localized: "\($0.kind.rawValue) · \($0.isDemo ? String(localized: "本地示例") : $0.kind == .sqlite ? String(localized: "本地文件") : $0.database)") } ?? String(localized: "你的数据，一目了然。"))
         .toolbar {
             ToolbarItemGroup {
@@ -28,7 +26,8 @@ struct WorkspaceView: View {
                     .help("新建连接 ⌘N")
                 Button { if store.allowNavigation() { store.tab = .query } } label: { Label("查询编辑器", systemImage: "terminal") }
                     .disabled(store.active == nil)
-                Button { store.openAgentHistory() } label: { Label("Agent 会话", systemImage: "sparkles") }
+                Button { store.openAgentWorkspace() } label: { Label("Agent 会话", systemImage: "sparkles") }
+                    .disabled(store.active == nil)
             }
             ToolbarSpacer(.fixed)
             ToolbarItem {
@@ -45,8 +44,10 @@ struct WorkspaceView: View {
                 .popover(isPresented: $store.readOnlyNotice) { Text("只读模式已阻止修改。点击锁按钮可切换模式。").padding(16) }
             }
             ToolbarItem {
-                Button { withAnimation(reduceMotion ? nil : .smooth(duration: 0.26)) { store.showInspector.toggle() } } label: { Label("记录详情", systemImage: "sidebar.right") }
-                    .help("显示记录详情")
+                Button {
+                    if store.tab == .agent { store.showAgentSessions.toggle() } else { store.showInspector.toggle() }
+                } label: { Label(store.tab == .agent ? String(localized: "最近会话") : String(localized: "记录详情"), systemImage: "sidebar.right") }
+                    .help(store.tab == .agent ? String(localized: "显示或隐藏最近会话") : String(localized: "显示记录详情"))
             }
         }
         .sheet(isPresented: $store.showConnectionSheet) { ConnectionSheet(store: store, existing: store.editingProfile) }
@@ -61,6 +62,36 @@ struct WorkspaceView: View {
         .confirmationDialog("移除连接？", isPresented: Binding(get: { store.removingProfile != nil }, set: { if !$0 { store.removingProfile = nil } }), titleVisibility: .visible) {
             if let profile = store.removingProfile { Button("移除连接", role: .destructive) { Task { await store.removeConnection(profile) } } }
         } message: { Text("仅移除保存的连接与凭据，数据库文件和数据会保留。") }
+    }
+
+    // Keep the transcript width independent of sidebar visibility. Only an
+    // actual window or divider resize should reflow long answers.
+    private var detail: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                if store.tab == .agent {
+                    AgentReadingColumn(
+                        content: AnyView(AgentView(store: store, readingWidth: min(920, max(300, geometry.size.width - trailingPanelWidth))).tint(.accentColor)),
+                        width: max(300, geometry.size.width - trailingPanelWidth),
+                        originX: trailingPanelVisible ? 0 : trailingPanelWidth / 2,
+                        animated: !reduceMotion
+                    )
+                }
+                else if store.active != nil { workspace }
+                else { welcome }
+                StatusBar(store: store)
+            }
+            .padding(.trailing, trailingPanelVisible ? trailingPanelWidth : 0)
+            .transaction { $0.animation = nil }
+            .background(.background)
+            .overlay(alignment: .trailing) {
+                WorkspaceTrailingPanel(isPresented: trailingPanelVisible, width: $trailingPanelWidth) {
+                    if store.tab == .agent { AgentRecentSessionsView(store: store) }
+                    else { InspectorView(store: store) }
+                }
+            }
+            .clipped()
+        }
     }
 
     private var workspace: some View {
@@ -82,7 +113,13 @@ struct WorkspaceView: View {
             }.padding(.horizontal, 24).padding(.vertical, 22)
             Divider()
             if store.tab == .overview {
-                ObjectBrowserView(objects: store.objects, kind: store.active?.kind ?? .sqlite, openObject: { object in Task { await store.chooseObject(object) } })
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 12) {
+                        Text("让 Agent").font(.headline)
+                        ScrollView(.horizontal) { AgentExampleButtons(action: store.startAgentExample) }
+                    }.padding(.horizontal, 24).padding(.top, 20).disabled(store.busy)
+                    ObjectBrowserView(objects: store.objects, kind: store.active?.kind ?? .sqlite, openObject: { object in Task { await store.chooseObject(object) } })
+                }
             }
             else if store.tab == .relationships {
                 Group {
@@ -105,8 +142,27 @@ struct WorkspaceView: View {
             else if store.tab == .agent { AgentView(store: store) }
             else {
                 tableActions
-                if let estimate = store.browseEstimate {
-                    DisclosureGroup(estimate.summary) { Text(verbatim: estimate.details).font(.caption.monospaced()).textSelection(.enabled) }.font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 6)
+                if store.showBrowseEstimate, let estimate = store.browseEstimate {
+                    DisclosureGroup(estimate.summary, isExpanded: $store.browseEstimateExpanded) {
+                        // Keep plan text out of the split view's intrinsic size calculation.
+                        // Long plans otherwise trigger recursive AppKit constraint updates.
+                        ScrollView([.horizontal, .vertical]) {
+                            Text(verbatim: estimate.details)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: true, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(height: 160)
+                    }
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .padding(.horizontal, 24).padding(.bottom, 6)
+                } else if store.showBrowseEstimate && store.browseEstimateLoading {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text("正在估算…").font(.caption2).foregroundStyle(.secondary)
+                        Spacer()
+                    }.padding(.horizontal, 24).padding(.bottom, 6)
                 }
                 dataGrid
                 pagination
@@ -116,6 +172,15 @@ struct WorkspaceView: View {
 
     private var tableActions: some View {
         HStack(spacing: 12) {
+            Button {
+                Task { await store.setBrowseEstimateVisible(!store.showBrowseEstimate) }
+            } label: {
+                Image(systemName: "chart.bar.doc.horizontal")
+                    .foregroundStyle(store.showBrowseEstimate ? Color.accentColor : Color.secondary)
+            }
+            .help(store.showBrowseEstimate ? String(localized: "隐藏自动估算栏") : String(localized: "显示自动估算栏"))
+            .accessibilityLabel(store.showBrowseEstimate ? String(localized: "隐藏自动估算栏") : String(localized: "显示自动估算栏"))
+            .disabled(!store.showBrowseEstimate && (store.busy || store.browseEstimateLoading))
             Menu {
                 Button("关键词（当前页）") { store.filterIsCondition = false }
                 Button(String(localized: store.active?.kind == .mongodb ? "JSON 条件" : "WHERE 条件")) { store.filterIsCondition = true }
@@ -224,22 +289,7 @@ struct SidebarView: View {
                         }
                     }
                 } header: { Text("连接").font(.system(size: 10, weight: .semibold)).tracking(1) }
-                Section("Agent") {
-                    Button { store.newAgentSession() } label: { Label("新会话", systemImage: "square.and.pencil").frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect) }.buttonStyle(.plain)
-                    Button { store.openAgentHistory() } label: {
-                        Label("所有会话", systemImage: "bubble.left.and.bubble.right").font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
-                    }.buttonStyle(.plain)
-                    if store.agentLibrary.workingCount > 0 { Text("\(store.agentLibrary.workingCount) 个会话进行中").font(.system(size: 10)).foregroundStyle(.secondary) }
-                    if store.agentLibrary.needsAttentionCount > 0 { Text("\(store.agentLibrary.needsAttentionCount) 个会话等待处理").font(.system(size: 10)).foregroundStyle(.secondary) }
-                }
                 if store.active != nil {
-                    Section("最近 10 个脚本") {
-                        ForEach(Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))) { script in
-                            Button { store.openScript(script.id) } label: {
-                                Text(script.name).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
-                            }.buttonStyle(.plain)
-                        }
-                    }
                     Section("工作台") {
                         workspaceLink(.overview)
                         workspaceLink(.relationships)
@@ -280,5 +330,145 @@ struct SidebarView: View {
         Button { if store.allowNavigation() { store.tab = tab } } label: {
             Label(tab == .agent ? String(localized: "Agent 助手") : tab == .query ? String(localized: "查询工作台") : tab.title, systemImage: tab.symbol).font(.system(size: 12)).padding(.vertical, 5).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
         }.buttonStyle(.plain).listRowBackground(store.tab == tab ? Color.accentColor.opacity(0.12) : Color.clear)
+    }
+}
+
+// Settle the workbench width once, outside the panel animation transaction.
+// Native inspector resizing reflows all content on every animation frame.
+private struct WorkspaceTrailingPanel<Content: View>: View {
+    let isPresented: Bool
+    @Binding var width: CGFloat
+    @ViewBuilder var content: () -> Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dragStartWidth: CGFloat?
+
+    var body: some View {
+        SlidingPanelHost(content: AnyView(content().tint(.accentColor).disabled(!isPresented).background(.background)), isPresented: isPresented, animated: !reduceMotion)
+            .frame(width: width)
+            .frame(maxHeight: .infinity)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(.separator).frame(width: isPresented ? 1 : 0)
+                Color.clear.frame(width: 8).contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 1)
+                        .onChanged { value in
+                            if dragStartWidth == nil { dragStartWidth = width }
+                            width = min(380, max(260, (dragStartWidth ?? width) - value.translation.width))
+                        }
+                        .onEnded { _ in dragStartWidth = nil })
+                    .help("拖动调整侧栏宽度")
+            }
+            .disabled(!isPresented)
+            .allowsHitTesting(isPresented)
+            .accessibilityHidden(!isPresented)
+    }
+}
+
+// A separate hosting view keeps the workbench out of the animation's display
+// updates. AppKit animates the layer-backed frame on the render server.
+private struct SlidingPanelHost: NSViewRepresentable {
+    let content: AnyView
+    let isPresented: Bool
+    let animated: Bool
+    func makeNSView(context: Context) -> SlidingPanelNSView {
+        SlidingPanelNSView(content: content)
+    }
+    func updateNSView(_ view: SlidingPanelNSView, context: Context) {
+        view.host.rootView = content
+        view.setPresented(isPresented, animated: animated)
+    }
+}
+
+private final class SlidingPanelNSView: NSView {
+    let host: NSHostingView<AnyView>
+    private var presented: Bool?
+    init(content: AnyView) {
+        host = NSHostingView(rootView: content)
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        host.wantsLayer = true
+        host.sizingOptions = []
+        addSubview(host)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layout() {
+        super.layout()
+        if host.frame.size != bounds.size {
+            host.setFrameSize(bounds.size)
+            host.setFrameOrigin(NSPoint(x: presented == true ? 0 : bounds.width, y: 0))
+        }
+    }
+    func setPresented(_ visible: Bool, animated: Bool) {
+        guard presented != visible else { return }
+        let shouldAnimate = animated && presented != nil && bounds.width > 0
+        presented = visible
+        let origin = NSPoint(x: visible ? 0 : bounds.width, y: 0)
+        animateWorkspaceFrame(animated: shouldAnimate, name: "Sidebar") {
+            host.animator().setFrameOrigin(origin)
+        }
+    }
+}
+
+// Move the fixed-width reading column as a single layer too. Otherwise moving
+// hundreds of offscreen Markdown/code/table views still incurs AppKit work.
+private struct AgentReadingColumn: NSViewRepresentable {
+    let content: AnyView
+    let width: CGFloat
+    let originX: CGFloat
+    let animated: Bool
+    func makeNSView(context: Context) -> AgentReadingColumnNSView {
+        AgentReadingColumnNSView(content: content)
+    }
+    func updateNSView(_ view: AgentReadingColumnNSView, context: Context) {
+        view.host.rootView = content
+        view.update(width: width, originX: originX, animated: animated)
+    }
+}
+
+private final class AgentReadingColumnNSView: NSView {
+    let host: NSHostingView<AnyView>
+    private var columnWidth: CGFloat = 0
+    private var originX: CGFloat?
+    init(content: AnyView) {
+        host = NSHostingView(rootView: content)
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        host.wantsLayer = true
+        host.sizingOptions = []
+        addSubview(host)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layout() {
+        super.layout()
+        let size = NSSize(width: columnWidth, height: bounds.height)
+        if host.frame.size != size { host.setFrameSize(size) }
+    }
+    func update(width: CGFloat, originX: CGFloat, animated: Bool) {
+        if columnWidth != width { columnWidth = width; needsLayout = true }
+        guard self.originX != originX else { return }
+        let shouldAnimate = animated && self.originX != nil && bounds.height > 0
+        self.originX = originX
+        animateWorkspaceFrame(animated: shouldAnimate, name: "Agent Reading Column") {
+            host.animator().setFrameOrigin(NSPoint(x: originX, y: 0))
+        }
+    }
+}
+
+@MainActor private func animateWorkspaceFrame(animated: Bool, name: StaticString, changes: () -> Void) {
+    #if DEBUG
+    // Measure the native animation interval separately from later AX snapshots.
+    let log = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "TableViewer", category: .pointsOfInterest)
+    let id = OSSignpostID(log: log)
+    if animated { os_signpost(.begin, log: log, name: name, signpostID: id) }
+    #endif
+    NSAnimationContext.runAnimationGroup { context in
+        context.duration = animated ? 0.22 : 0
+        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        changes()
+    } completionHandler: {
+        #if DEBUG
+        if animated { os_signpost(.end, log: log, name: name, signpostID: id) }
+        #endif
     }
 }

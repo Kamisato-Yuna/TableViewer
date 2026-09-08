@@ -298,7 +298,7 @@ actor DatabaseEngine {
             if profile?.kind == .mongodb {
                 let command = try jsonObject(query)
                 if let collection = command["find"] as? String {
-                    let explained = try mongoCommand(["explain": ["find": collection, "filter": command["filter"] ?? [:], "sort": command["sort"] ?? [:]], "verbosity": "queryPlanner"], name: "explain")
+                    let explained = try mongoCommand(["explain": ["find": collection, "filter": command["filter"] ?? [:], "sort": command["sort"] ?? [:]], "verbosity": "queryPlanner"], name: "explain", explainedCommandName: "find")
                     let details = try jsonText(explained, pretty: true)
                     return QueryEstimate(severity: details.contains("COLLSCAN") ? .large : .unknown,
                         summary: String(localized: "MongoDB queryPlanner 未执行查询，不提供可靠工作量；请检查扫描计划。"), details: details)
@@ -570,13 +570,25 @@ actor DatabaseEngine {
         return output
     }
 
-    func mongoCommand(_ command: [String: Any], name: String? = nil, database: String? = nil) throws -> [String: Any] {
+    func mongoCommand(_ command: [String: Any], name: String? = nil, database: String? = nil, explainedCommandName: String? = nil) throws -> [String: Any] {
         guard let mongo, let profile else { throw DatabaseFailure(String(localized: "MongoDB 未连接。")) }
         // MongoDB requires the command name to be the FIRST BSON element.
         let known = ["ping", "listCollections", "getMore", "find", "update", "insert", "delete", "killCursors"]
         guard let first = name ?? known.first(where: { command[$0] != nil }), command[first] != nil else { throw DatabaseFailure(String(localized: "缺少 MongoDB 命令名称。")) }
         let keys = [first] + command.keys.filter { $0 != first }.sorted()
-        let orderedJSON = "{" + (try keys.map { try jsonText($0) + ":" + jsonText(command[$0]!) }).joined(separator: ",") + "}"
+        let orderedJSON = "{" + (try keys.map { key in
+            let value: String
+            if first == "explain", key == "explain", let explainedCommandName,
+               let nested = command[key] as? [String: Any], nested[explainedCommandName] != nil {
+                // The embedded command also requires its name first. jsonText's
+                // sortedKeys would otherwise put "filter" before "find".
+                let nestedKeys = [explainedCommandName] + nested.keys.filter { $0 != explainedCommandName }.sorted()
+                value = "{" + (try nestedKeys.map { try jsonText($0) + ":" + jsonText(nested[$0]!) }).joined(separator: ",") + "}"
+            } else {
+                value = try jsonText(command[key]!)
+            }
+            return try jsonText(key) + ":" + value
+        }).joined(separator: ",") + "}"
         var error: UnsafeMutablePointer<CChar>?
         guard let result = tv_mongo_command(mongo, database ?? profile.database, orderedJSON, &error) else { throw nativeError(error) }
         defer { free(result) }

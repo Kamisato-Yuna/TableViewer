@@ -55,12 +55,14 @@ struct ShellEntry: Identifiable {
     var statementResults: [StatementResult] = []
     var selectedResultIndex = 0
     var queryFailure: String?
-    var showScripts = false
     var showScriptName = false
     var renamingScriptID: UUID?
     var scriptName = ""
     var readOnly = false
     var browseEstimate: QueryEstimate?
+    var showBrowseEstimate = UserDefaults.standard.object(forKey: "showAutomaticEstimates") as? Bool ?? true
+    var browseEstimateExpanded = false
+    var browseEstimateLoading = false
     var scriptSaveError: String?
     var selectedRowIDs = Set<UUID>()
     var readOnlyNotice = false
@@ -100,10 +102,13 @@ struct ShellEntry: Identifiable {
     var shellRunning = false
     let agentLibrary: AgentLibrary
     var showAgentHistory = false
+    var showAgentSessions = false
     typealias AgentExecution = @Sendable (UUID, AgentAction, ConnectionProfile, DatabaseObject?) async throws -> String
     private let agentExecution: @Sendable (UUID, AgentAction, ConnectionProfile, DatabaseObject?, Bool) async throws -> String
     private let readCredential: (UUID) throws -> String
-    init(agentLibrary: AgentLibrary? = nil, agentExecution: AgentExecution? = nil, readCredential: @escaping (UUID) throws -> String = { try ConnectionVault.read(id: $0) }, scripts: ScriptLibrary? = nil) {
+    private let browseEstimator: (@MainActor (String) async -> QueryEstimate)?
+    init(agentLibrary: AgentLibrary? = nil, agentExecution: AgentExecution? = nil, readCredential: @escaping (UUID) throws -> String = { try ConnectionVault.read(id: $0) }, scripts: ScriptLibrary? = nil, browseEstimator: (@MainActor (String) async -> QueryEstimate)? = nil) {
+        self.browseEstimator = browseEstimator
         self.scripts = scripts ?? ScriptLibrary()
         self.readCredential = readCredential
         self.agentLibrary = agentLibrary ?? AgentLibrary()
@@ -113,6 +118,26 @@ struct ShellEntry: Identifiable {
         bindAutomaticActions()
     }
     var agent: AgentSession? { agentLibrary.selected }
+    var currentDatabaseSessions: [AgentSession] {
+        guard let active else { return [] }
+        return agentLibrary.sessions.filter { !$0.archived && $0.connection?.connectionID == active.id }
+            .sorted { ($0.historyDate, $0.id.uuidString) > ($1.historyDate, $1.id.uuidString) }
+    }
+    func openAgentWorkspace() {
+        guard active != nil, allowNavigation() else { return }
+        let sessions = currentDatabaseSessions
+        let working = sessions.first { $0.running || $0.actions.contains { $0.state == .executing } }
+        let selected = sessions.first { $0.id == agent?.id }
+        if let session = working ?? selected ?? sessions.first {
+            agentLibrary.open(session.id)
+            tab = .agent
+        } else { newAgentSession() }
+    }
+    func startAgentExample(_ prompt: String) {
+        guard active != nil, allowNavigation() else { return }
+        newAgentSession()
+        agent?.input = prompt
+    }
     func newAgentSession(for profile: ConnectionProfile? = nil) {
         guard let profile = profile ?? active else { showAgentHistory = true; return }
         agentLibrary.create(context: AgentContext(connectionID: profile.id, connectionName: profile.name, kind: profile.kind))
@@ -203,7 +228,6 @@ struct ShellEntry: Identifiable {
             let loaded = try await engine.connect(profile, secret: credential)
             active = profile; objects = loaded
             schemaMetadata = nil; relationships = []; structureError = nil; relationshipError = nil; browseEstimate = nil
-            if agentLibrary.selected == nil { newAgentSession(for: profile) }
             selectedObject = nil; result = QueryResult(); selectedRowID = nil
             page = 0; sortColumn = nil; rowSearch = ""; objectSearch = ""; tab = .overview
             queryResult = QueryResult(); queryHasRun = false; queryHistory = []
@@ -231,21 +255,43 @@ struct ShellEntry: Identifiable {
         guard !hasChanges, !busy else { return false }
         busy = true; status = String(localized: "读取数据…")
         defer { busy = false }
+        browseEstimate = nil; browseEstimateExpanded = false
         do {
             if reloadObjects { objects = try await engine.objects() }
             if let selectedObject {
-                let estimateSQL = active?.kind == .mongodb ? "{\"find\": " + (try jsonText(selectedObject.name)) + ", \"filter\": " + (appliedCondition.isEmpty ? "{}" : appliedCondition) + "}" : "SELECT * FROM " + selectedObject.qualifiedName + (appliedCondition.isEmpty ? "" : " WHERE (" + appliedCondition + ")")
-                let estimate = await engine.estimate(estimateSQL)
-                browseEstimate = estimate
-                if estimate.severity == .large || estimate.severity == .excessive {
-                    guard await confirmEstimate(estimate) else { status = String(localized: "已取消"); return false }
-                }
+                await loadBrowseEstimate()
                 result = try await engine.browse(selectedObject, page: page, sort: sortColumn, ascending: sortAscending, condition: appliedCondition)
                 selectRow(result.rows.first?.id)
+                if showBrowseEstimate && browseEstimate == nil { await loadBrowseEstimate() }
             }
             status = String(localized: "已刷新")
             return true
         } catch { result = QueryResult(); selectedRowID = nil; report(error); return false }
+    }
+
+    func setBrowseEstimateVisible(_ visible: Bool) async {
+        showBrowseEstimate = visible
+        browseEstimate = nil; browseEstimateExpanded = false
+        if visible && !busy { await loadBrowseEstimate() }
+    }
+
+    private func loadBrowseEstimate() async {
+        guard showBrowseEstimate, let object = selectedObject, let connection = active else { return }
+        let condition = appliedCondition
+        browseEstimateExpanded = false
+        browseEstimateLoading = true
+        defer { browseEstimateLoading = false }
+        let query: String
+        do {
+            query = connection.kind == .mongodb ? "{\"find\": " + (try jsonText(object.name)) + ", \"filter\": " + (condition.isEmpty ? "{}" : condition) + "}" : "SELECT * FROM " + object.qualifiedName + (condition.isEmpty ? "" : " WHERE (" + condition + ")")
+        } catch { report(error); return }
+        let estimate: QueryEstimate
+        if let browseEstimator { estimate = await browseEstimator(query) }
+        else { estimate = await engine.estimate(query) }
+        // A hidden bar must not reappear when an already running estimate completes.
+        guard showBrowseEstimate, active?.id == connection.id, selectedObject == object, appliedCondition == condition else { return }
+        browseEstimate = estimate
+        browseEstimateExpanded = false
     }
 
     func selectRow(_ id: UUID?) {

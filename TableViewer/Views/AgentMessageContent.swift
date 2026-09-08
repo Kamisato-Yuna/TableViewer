@@ -6,8 +6,9 @@ struct AgentMarkdownView: View {
     var quickReplies: [String] = []
     var repliesEnabled = true
     var reply: ((String) -> Void)?
+    @State private var parsed = AgentMarkdownCache()
     var body: some View {
-        let blocks = AgentMarkdownBlock.parse(text)
+        let blocks = parsed.blocks(for: text)
         VStack(alignment: .leading, spacing: 10) {
             ForEach(blocks.indices, id: \.self) { index in
                 switch blocks[index] {
@@ -51,8 +52,32 @@ struct AgentMarkdownView: View {
 
 private struct AgentInlineText: View {
     let text: String
+    @State private var parsed = AgentInlineCache()
     var body: some View {
-        Text((try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text))
+        Text(parsed.value(for: text))
+    }
+}
+
+// View-local caches: resizing changes layout, not the Markdown source. These plain
+// reference objects do not publish mutations during SwiftUI body evaluation.
+final class AgentMarkdownCache {
+    private var source: String?
+    private var result: [AgentMarkdownBlock] = []
+    func blocks(for text: String) -> [AgentMarkdownBlock] {
+        if source != text { result = AgentMarkdownBlock.parse(text); source = text }
+        return result
+    }
+}
+
+final class AgentInlineCache {
+    private var source: String?
+    private var result = AttributedString("")
+    func value(for text: String) -> AttributedString {
+        if source != text {
+            result = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+            source = text
+        }
+        return result
     }
 }
 

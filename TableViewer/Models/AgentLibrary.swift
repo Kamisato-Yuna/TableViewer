@@ -6,14 +6,16 @@ struct StoredAgentMessage: Codable {
     var id: UUID
     var message: AgentMessage
     var delivery: AgentDelivery
-    init(_ message: AgentMessage) { id = message.id; self.message = message; delivery = message.delivery }
-    var restored: AgentMessage { var value = message; value.id = id; value.delivery = delivery; return value }
+    var usage: AgentTokenUsage?
+    init(_ message: AgentMessage) { id = message.id; self.message = message; delivery = message.delivery; usage = message.usage }
+    var restored: AgentMessage { var value = message; value.id = id; value.delivery = delivery; value.usage = usage; return value }
 }
 struct StoredAgentSession: Codable {
     var id: UUID
     var title: String
     var createdAt: Date
     var updatedAt: Date
+    var lastInputAt: Date?
     var archived: Bool
     var connection: AgentContext?
     var configuration: AgentConfiguration
@@ -28,6 +30,7 @@ struct StoredAgentSession: Codable {
     var requestContext: AgentContext?
     @MainActor init(_ session: AgentSession) {
         id = session.id; title = session.title; createdAt = session.createdAt; updatedAt = session.updatedAt
+        lastInputAt = session.historyDate
         archived = session.archived; connection = session.connection; configuration = session.configuration
         input = session.input; shareSchema = session.shareSchema; approvalMode = session.approvalMode; messages = session.messages.map(StoredAgentMessage.init)
         actions = session.actions; error = session.error; responseID = session.responseID
@@ -54,6 +57,8 @@ struct StoredAgentSession: Codable {
         session.error = error; session.responseID = responseID
         session.requestHistory = requestHistory.map(\.restored); session.requestContext = requestContext
         session.updatedAt = updatedAt
+        // Older histories have no input timestamp; preserve their existing order.
+        session.lastInputAt = lastInputAt ?? updatedAt
         return session
     }
 }
@@ -89,7 +94,11 @@ struct StoredAgentSession: Codable {
     }
     // Also used by the deterministic state/IO tests; normal UI sessions use create(context:).
     func add(_ session: AgentSession) { sessions.insert(session, at: 0); observe(session); selectedID = session.id }
-    func open(_ id: UUID) { if sessions.contains(where: { $0.id == id }) { selectedID = id } }
+    func open(_ id: UUID) {
+        if sessions.contains(where: { $0.id == id }) {
+            selectedID = id
+        }
+    }
     func rename(_ session: AgentSession, to title: String) {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !title.isEmpty { session.title = String(title.prefix(120)) }
@@ -97,7 +106,7 @@ struct StoredAgentSession: Codable {
     func archive(_ session: AgentSession, archived: Bool) { session.archived = archived }
     func matching(_ query: String, archived: Bool) -> [AgentSession] {
         sessions.filter { $0.archived == archived && (query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || ($0.connection?.connectionName.localizedCaseInsensitiveContains(query) ?? false)) }
-            .sorted { $0.updatedAt > $1.updatedAt }
+            .sorted { ($0.historyDate, $0.id.uuidString) > ($1.historyDate, $1.id.uuidString) }
     }
     private func observe(_ session: AgentSession) {
         session.onChange = { [weak self] immediate in

@@ -18,9 +18,45 @@ import Darwin
     }
     @MainActor static func main() async throws {
         setbuf(stdout, nil)
+        if CommandLine.arguments.contains("--agent-usage-only") {
+            var streaming = CompletionAccumulator()
+            _ = try streaming.consume(["choices": [["delta": ["content": "hello"], "finish_reason": "stop"]]])
+            _ = try streaming.consume(["choices": [], "usage": ["prompt_tokens": 11, "completion_tokens": 3, "total_tokens": 14]])
+            let message = try streaming.message()
+            check(message.usage?.total == 14 && message.usage?.output == 3, "Streaming usage-only final chunk is retained")
+            let saved = try JSONEncoder().encode(StoredAgentMessage(message))
+            check(try JSONDecoder().decode(StoredAgentMessage.self, from: saved).restored.usage?.input == 11, "Token usage survives local history round trip")
+            let wire = try jsonObject(String(decoding: JSONEncoder().encode(message), as: UTF8.self))
+            check(wire["usage"] == nil, "Local token usage is never sent as message history")
+            var normal = CompletionAccumulator()
+            _ = try normal.consume(["choices": [["message": ["content": "hi"]]], "usage": ["completion_tokens": 2]])
+            check(try normal.message().usage?.output == 2 && normal.message().usage?.input == nil, "Nonstreaming partial usage does not invent missing counts")
+            let legacy = try JSONDecoder().decode(StoredAgentMessage.self, from: Data("{\"id\":\"00000000-0000-0000-0000-000000000001\",\"message\":{\"role\":\"assistant\",\"content\":\"old\"},\"delivery\":\"complete\"}".utf8))
+            check(legacy.restored.usage == nil, "Old history without usage remains readable")
+            guard failures.isEmpty else { throw DatabaseFailure("Agent usage regression failed") }
+            return
+        }
+        if CommandLine.arguments.contains("--mongo-estimates-only") {
+            guard let port = ProcessInfo.processInfo.environment["TV040_MONGO_PORT"] else {
+                throw DatabaseFailure("Set TV040_MONGO_PORT to the dedicated acceptance040 server")
+            }
+            try await mongo(port: port, estimatesOnly: true)
+            guard failures.isEmpty else { throw DatabaseFailure("MongoDB estimate regression failed") }
+            return
+        }
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("tv040-integration-" + UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temporary) }
+        if CommandLine.arguments.contains("--agent-navigation-only") {
+            agentNavigation(temporary)
+            guard failures.isEmpty else { throw DatabaseFailure("Agent navigation regression failed") }
+            return
+        }
+        if CommandLine.arguments.contains("--browse-estimates-only") {
+            try await browseEstimateVisibility(temporary)
+            guard failures.isEmpty else { throw DatabaseFailure("Browse estimate visibility regression failed") }
+            return
+        }
         do { try await sqlite(temporary) } catch { check(false, "SQLite unexpected error: \(error.localizedDescription)") }
         let environment = ProcessInfo.processInfo.environment
         if let port = environment["TV040_PG_PORT"], !port.isEmpty {
@@ -42,6 +78,97 @@ import Darwin
         _ = try await engine.connect(profile, secret: "")
         try await sqliteChecks(engine, profile: profile, temporary: temporary)
         await engine.disconnect()
+    }
+    @MainActor static func agentNavigation(_ temporary: URL) {
+        let library = AgentLibrary(file: temporary.appendingPathComponent("agent-navigation.json"))
+        let store = WorkspaceStore(agentLibrary: library, readCredential: { _ in "" }, scripts: ScriptLibrary(directory: temporary.appendingPathComponent("scripts")))
+        let first = ConnectionProfile(name: "First", path: "first.sqlite")
+        let second = ConnectionProfile(name: "Second", path: "second.sqlite")
+        store.active = first
+        store.openAgentWorkspace()
+        let original = store.agent!
+        check(original.connection?.connectionID == first.id && store.tab == .agent, "AI entry creates a session for the active database when needed")
+        original.input = "Existing draft"
+        store.tab = .overview
+        store.openAgentWorkspace()
+        check(store.agent?.id == original.id && library.sessions.count == 1 && original.input == "Existing draft", "AI entry resumes the previous session without losing its draft")
+        store.active = second
+        store.openAgentWorkspace()
+        let other = store.agent!
+        store.active = first
+        store.openAgentWorkspace()
+        check(store.agent?.id == original.id && store.currentDatabaseSessions.allSatisfy { $0.connection?.connectionID == first.id }, "Database switching restores and lists only matching sessions")
+        store.newAgentSession()
+        let latest = store.agent!
+        original.running = true
+        store.openAgentWorkspace()
+        check(store.agent?.id == original.id, "An in-progress conversation takes priority over an idle conversation")
+        original.running = false
+        library.archive(original, archived: true)
+        store.openAgentWorkspace()
+        check(store.agent?.id == latest.id && !store.currentDatabaseSessions.contains { $0.id == original.id }, "Archived sessions are excluded from automatic restore and recent sidebar")
+        let count = library.sessions.count
+        store.startAgentExample("Example draft")
+        check(library.sessions.count == count + 1 && store.agent?.input == "Example draft" && store.agent?.running == false && store.agent?.messages.isEmpty == true && other.input.isEmpty, "Example starts a local draft without sending or modifying other conversations")
+        library.open(latest.id)
+        let reopened = AgentLibrary(file: temporary.appendingPathComponent("agent-navigation.json"))
+        check(reopened.selectedID == latest.id, "Last opened conversation selection is persisted")
+        let order = store.currentDatabaseSessions.map(\.id)
+        library.open(latest.id)
+        latest.input = "Unsent draft"
+        latest.title = "Renamed without sending"
+        latest.messages.append(AgentMessage(role: "assistant", content: "Response update"))
+        check(store.currentDatabaseSessions.map(\.id) == order, "Viewing, drafting, renaming and assistant updates preserve history order")
+        latest.messages.append(AgentMessage(role: "user", content: "New input"))
+        check(store.currentDatabaseSessions.first?.id == latest.id && library.matching("", archived: false).first?.id == latest.id, "New user message moves the session first in recent and full history")
+        library.save()
+        let restored = AgentLibrary(file: temporary.appendingPathComponent("agent-navigation.json"))
+        check(restored.matching("", archived: false).first?.id == latest.id, "Input-based history order survives restart")
+    }
+    @MainActor static func browseEstimateVisibility(_ temporary: URL) async throws {
+        let profile = ConnectionProfile(name: "Estimate visibility fixture", path: temporary.appendingPathComponent("visibility.sqlite").path)
+        var handle: OpaquePointer?
+        guard sqlite3_open(profile.path, &handle) == SQLITE_OK else { throw DatabaseFailure("Cannot create fixture") }
+        sqlite3_close(handle)
+        var calls = 0
+        var pause = false
+        var pending: CheckedContinuation<Void, Never>?
+        let store = WorkspaceStore(agentLibrary: AgentLibrary(file: temporary.appendingPathComponent("agents.json")),
+            readCredential: { _ in "" }, scripts: ScriptLibrary(directory: temporary.appendingPathComponent("scripts")),
+            browseEstimator: { _ in
+                calls += 1
+                if pause { await withCheckedContinuation { pending = $0 } }
+                return QueryEstimate(severity: .large, summary: "COLLSCAN", details: "fixture plan")
+            })
+        _ = try await store.engine.connect(profile, secret: "")
+        store.active = profile
+        for statement in ["CREATE TABLE first(id INTEGER PRIMARY KEY)", "CREATE TABLE second(id INTEGER PRIMARY KEY)", "INSERT INTO first VALUES(1)"] {
+            _ = try await store.engine.run(statement)
+        }
+        await store.setBrowseEstimateVisible(false)
+        await store.chooseObject(DatabaseObject(name: "first"))
+        _ = await store.refresh()
+        check(calls == 0 && store.browseEstimate == nil && store.result.rows.count == 1, "Hidden estimates do not run on table selection or refresh; data still loads")
+        await store.setBrowseEstimateVisible(true)
+        check(calls == 1 && store.browseEstimate != nil && !store.browseEstimateExpanded, "Showing estimates runs once and keeps details collapsed")
+        store.browseEstimateExpanded = true
+        check(await store.refresh(), "Large browse estimate does not open a confirmation sheet")
+        check(calls == 2 && !store.browseEstimateExpanded, "Refreshing collapses previously expanded details")
+        store.browseEstimateExpanded = true
+        await store.chooseObject(DatabaseObject(name: "second"))
+        check(calls == 3 && !store.browseEstimateExpanded, "Switching tables keeps the new estimate collapsed")
+        await store.setBrowseEstimateVisible(false)
+        _ = await store.refresh()
+        check(calls == 3 && store.browseEstimate == nil, "Hiding disables subsequent automatic estimates")
+        pause = true
+        let loading = Task { await store.setBrowseEstimateVisible(true) }
+        for _ in 0..<100 where pending == nil { await Task.yield() }
+        check(pending != nil && store.browseEstimateLoading, "Estimate can remain in flight")
+        await store.setBrowseEstimateVisible(false)
+        pending?.resume()
+        await loading.value
+        check(!store.showBrowseEstimate && store.browseEstimate == nil && !store.browseEstimateExpanded, "In-flight completion cannot restore hidden estimate details")
+        await store.engine.disconnect()
     }
     @MainActor static func sqliteChecks(_ engine: DatabaseEngine, profile: ConnectionProfile, temporary: URL) async throws {
         for statement in [
@@ -165,16 +292,35 @@ import Darwin
         try checkTabularExports(exported, kind: .postgresql)
         try await multiResult(profile: profile, temporary: temporary, table: schema + ".batch_log")
     }
-    @MainActor static func mongo(port: String) async throws {
+    @MainActor static func mongo(port: String, estimatesOnly: Bool = false) async throws {
         guard Int(port).map({ (1...65535).contains($0) }) == true else { throw DatabaseFailure("Invalid TV040_MONGO_PORT") }
         let profile = ConnectionProfile(name: "Dedicated MongoDB 040", kind: .mongodb, host: "127.0.0.1", port: port, database: "acceptance040")
         let engine = DatabaseEngine()
         _ = try await engine.connect(profile, secret: "mongodb://127.0.0.1:\(port)/acceptance040")
         let name = "tv040_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
-        do { try await mongoChecks(engine, name: name) }
+        do {
+            if estimatesOnly { try await mongoEstimateChecks(engine, name: name) }
+            else { try await mongoChecks(engine, name: name) }
+        }
         catch { _ = try? await engine.run("{\"drop\":\"\(name)\"}"); await engine.disconnect(); throw error }
         _ = try await engine.run("{\"drop\":\"\(name)\"}")
         await engine.disconnect()
+    }
+    @MainActor static func mongoEstimateChecks(_ engine: DatabaseEngine, name: String) async throws {
+        _ = try await engine.run("{\"insert\":\"\(name)\",\"documents\":[{\"_id\":1,\"label\":\"first\"},{\"_id\":2,\"label\":\"second\"}]}")
+        let queries = [
+            ("{\"find\":\"\(name)\",\"filter\":{}}", "COLLSCAN"),
+            ("{\"find\":\"\(name)\",\"filter\":{\"_id\":{\"$gte\":1}},\"sort\":{\"_id\":-1}}", "IXSCAN")
+        ]
+        for (query, stage) in queries {
+            let estimate = await engine.estimate(query)
+            let response = try? jsonObject(estimate.details)
+            check(response?["queryPlanner"] != nil && estimate.details.contains(stage), "MongoDB find estimate returns \(stage) planner instead of command error")
+            check(response != nil && response?["executionStats"] == nil, "MongoDB estimate uses queryPlanner without execution statistics")
+            if stage == "COLLSCAN" { check(estimate.severity == .large, "MongoDB collection scan retains large-work warning") }
+        }
+        let all = try await engine.run("{\"find\":\"\(name)\",\"filter\":{}}", readOnly: true)
+        check(all.rows.count == 2, "MongoDB estimates preserve fixture documents")
     }
     @MainActor static func mongoChecks(_ engine: DatabaseEngine, name: String) async throws {
         _ = try await engine.run("{\"create\":\"\(name)\",\"validator\":{\"$jsonSchema\":{\"bsonType\":\"object\",\"required\":[\"label\"],\"properties\":{\"label\":{\"bsonType\":\"string\"}}}}}")

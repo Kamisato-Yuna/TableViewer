@@ -35,11 +35,13 @@ struct CompletionAccumulator {
     var content = ""
     var calls: [Int: AgentToolCall] = [:]
     var finished = false
+    var usage: AgentTokenUsage?
     private var filter = AgentReasoningFilter()
     private var completionError: String?
     private var receivedContentBytes = 0
     mutating func consume(_ object: [String: Any]) throws -> String {
         if let error = object["error"] as? [String: Any] { throw DatabaseFailure(error["message"] as? String ?? String(localized: "API 返回错误。")) }
+        if let raw = object["usage"] as? [String: Any], let received = AgentTokenUsage(raw) { usage = received }
         guard let choice = (object["choices"] as? [[String: Any]])?.first else { return "" }
         let delta = choice["delta"] as? [String: Any] ?? choice["message"] as? [String: Any] ?? [:]
         let rawText = delta["content"] as? String ?? delta["refusal"] as? String ?? ""
@@ -70,7 +72,9 @@ struct CompletionAccumulator {
         let ordered = calls.keys.sorted().compactMap { calls[$0] }
         guard !content.isEmpty || !ordered.isEmpty else { throw DatabaseFailure(String(localized: "模型没有返回内容或工具调用。")) }
         guard Set(ordered.map(\.id)).count == ordered.count, ordered.allSatisfy({ !$0.id.isEmpty && !$0.function.name.isEmpty && (try? jsonObject($0.function.arguments)) != nil }) else { throw DatabaseFailure(String(localized: "API 返回的工具调用不完整；未执行操作。")) }
-        return AgentMessage(role: "assistant", content: content.isEmpty ? nil : content, toolCalls: ordered.isEmpty ? nil : ordered)
+        var message = AgentMessage(role: "assistant", content: content.isEmpty ? nil : content, toolCalls: ordered.isEmpty ? nil : ordered)
+        message.usage = usage
+        return message
     }
 }
 
@@ -106,7 +110,8 @@ final class OpenAICompatibleClient: @unchecked Sendable {
     private func performCompletion(configuration: AgentConfiguration, key: String, messages: [AgentMessage], context: AgentContext, onDelta: @escaping @Sendable (String) async -> Void) async throws -> AgentMessage {
         guard !configuration.model.trimmingCharacters(in: .whitespaces).isEmpty else { throw DatabaseFailure(String(localized: "请先设置模型名称。")) }
         let encoded = try JSONEncoder().encode([AgentMessage(role: "system", content: context.instruction)] + messages)
-        let body: [String: Any] = ["model": configuration.model, "messages": try JSONSerialization.jsonObject(with: encoded), "stream": configuration.streaming, "tools": Self.tools, "tool_choice": "auto"]
+        var body: [String: Any] = ["model": configuration.model, "messages": try JSONSerialization.jsonObject(with: encoded), "stream": configuration.streaming, "tools": Self.tools, "tool_choice": "auto"]
+        if configuration.streaming { body["stream_options"] = ["include_usage": true] }
         var request = URLRequest(url: try configuration.endpoint("chat/completions"))
         request.httpMethod = "POST"; request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
