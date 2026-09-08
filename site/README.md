@@ -41,12 +41,12 @@ GitHub Pages 使用 Actions 发布，工作流为 `.github/workflows/pages.yml`�
 
 `site/assets/screenshots/` 保存四张原图：Studio 数据表 / 自动估算栏 / 记录详情，以及 Agent Liquid Glass 输入区 / 最近会话时间线，各有深浅两种外观。数据为应用自带 Studio 示例；Agent 是通过应用创建并命名的本地示例会话与**未发送草稿**，未配置 API、未伪造模型回复或执行结果。网页原有交互示意继续与实际截图明确区分。
 
-每张原图生成 768、1440、2880 宽的 WebP。采用 lossless 编码保留文本边缘；较小尺寸仅作下采样，最大尺寸保持原始像素。生成命令（本机 libwebp `cwebp`，无需运行时依赖）：
+每张原图生成 768、1440、2880 宽的 WebP。采用 lossless 编码保留文本边缘并携带原图 Display P3 色彩配置；较小尺寸仅作下采样，最大尺寸保持原始像素。生成命令（本机 libwebp `cwebp`，无需运行时依赖）：
 
 ```sh
-cwebp -lossless -m 6 -resize 768 0 workspace-light.png -o workspace-light-768.webp
-cwebp -lossless -m 6 -resize 1440 0 workspace-light.png -o workspace-light-1440.webp
-cwebp -lossless -m 6 workspace-light.png -o workspace-light-2880.webp
+cwebp -lossless -m 6 -metadata icc -resize 768 0 workspace-light.png -o workspace-light-768.webp
+cwebp -lossless -m 6 -metadata icc -resize 1440 0 workspace-light.png -o workspace-light-1440.webp
+cwebp -lossless -m 6 -metadata icc workspace-light.png -o workspace-light-2880.webp
 ```
 
 图标缩为 256×256 后以无损 WebP 保存，满足导航和 112 pt 下载图标的 Retina 展示；`app-icon.png` 保留为设计来源。构建直接复制 `site/assets`，旧 `docs/screenshots` 仍供仓库文档使用，不再作为 Pages 展示来源。
