@@ -75,12 +75,8 @@ TV053_PG_PORT=<postgres-port> TV053_MONGO_PORT=<mongo-port> bash script/test_wor
 
 ### 独立圆角块与两级悬停最终补验
 
-- 最终构建记录：tv053-finder-close-final.log。tv053-two-blocks-viewport.log 通过原生留白/选区、两方向分栏尺寸、会话保留及撤销回归。
-- 前述包含标签的大圆角主体、82 pt 顶部留白和关闭按钮玻璃方案均已被本节及实现说明覆盖。
-- 原生物理悬停、控件按下状态及全局透明度开关不由静态实现或构建成功代替验收；物理反馈尚待确认。
-
-- 用户实际悬停发现活动标签 x 比非活动项模糊：旧版验收失败，不能沿用“正常”的早期反馈。单独背景试验导致标题被采样，已弃用；最终关闭按钮为玻璃标签的独立前景兄弟视图，使用独立合成层和 primary 单色前景。修正构建 tv053-close-foreground.log，等待最终物理悬停复核。
-
-- 用户复核发现局部标题柔化产生重影，前景分离版本仍未通过。最终移除所有标题模糊/遮罩，永久对称预留关闭空间；标题与 x 先组成统一前景，再施加标签玻璃背景。构建 tv053-tab-foreground-final.log，最终悬停仍待用户确认。
-
-- 最终真实应用证据：two-blocks-final-light.png、two-blocks-final-stacked-light.png、two-blocks-final-dark.png；长脚本与 120 行结果滚动边界见 two-blocks-corners-dark.png、two-blocks-corners-dark-narrow.png（标签前景修正前的同一圆角布局）。历史菜单实际打开正常；关闭图标最后一次悬停反馈仍待确认，不能称为完整视觉验收。
+- 最终构建记录：tv053-tab-foreground-final.log。tv053-two-blocks-viewport.log 通过原生留白/选区、两方向分栏尺寸、会话保留及撤销回归。
+- 最终移除所有标题模糊/遮罩，永久对称预留关闭空间；标题与 x 先组成统一前景，再施加标签玻璃背景。包含标签的大圆角主体、82 pt 顶部留白、关闭按钮玻璃和独立背景采样试验均已被最终实现覆盖。
+- 2026-09-09，用户在最新版隔离 QA 应用实际操作后明确确认：“悬停清晰度通过了”。关闭图标悬停清晰度记为用户验收通过；旧版模糊及标题重影失败记录不作为最终验收结论。
+- 最终真实应用证据：two-blocks-final-light.png、two-blocks-final-stacked-light.png、two-blocks-final-dark.png；长脚本与 120 行结果滚动边界见 two-blocks-corners-dark.png、two-blocks-corners-dark-narrow.png（标签前景修正前的同一圆角布局）。历史菜单实际打开正常。
+- 本次用户确认仅覆盖悬停清晰度，不扩大为所有控件按下状态、物理分栏拖动或全局透明度开关的验收；这些项目仍保持此前记录的证据边界。
