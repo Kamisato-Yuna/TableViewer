@@ -24,6 +24,19 @@ import Observation
   func settle() { host.layoutSubtreeIfNeeded(); RunLoop.main.run(until:Date().addingTimeInterval(0.15)) }
   settle()
   guard let a=store.queryEditorViews[aID]?.documentView as? QueryTextView else { fatalError("A did not mount") }
+  func findSplit(_ view: NSView) -> NSSplitView? {
+   if let split = view as? NSSplitView { return split }
+   return view.subviews.lazy.compactMap { findSplit($0) }.first
+  }
+  guard let split = findSplit(host) else { fatalError("Owned split did not mount") }
+  split.setPosition(300, ofDividerAt: 0);settle()
+  precondition(abs(split.arrangedSubviews[0].frame.width - 300) < 1)
+  precondition(store.queryEditorViews[aID]?.documentView === a && a.string == "SELECT 40;")
+  split.isVertical=false;split.adjustSubviews();split.setPosition(180,ofDividerAt:0);settle()
+  precondition(abs(split.arrangedSubviews[0].frame.height - 180) < 1)
+  precondition(store.queryEditorViews[aID]?.documentView === a)
+  split.isVertical=true;split.adjustSubviews();settle()
+  print("PASS owned dividerless split: both axes resize without replacing the editor")
   a.setSelectedRange(NSRange(location:(a.string as NSString).length,length:0))
   let board=NSPasteboard.withUniqueName();defer{board.releaseGlobally()}
   board.declareTypes([.string],owner:nil)

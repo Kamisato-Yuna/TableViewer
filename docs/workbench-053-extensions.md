@@ -62,3 +62,11 @@ TV053_PG_PORT=<postgres-port> TV053_MONGO_PORT=<mongo-port> bash script/test_wor
 - tv053-underlap-viewport.log：顶部选区可见性、窄宽重排、手动滚动和 A/B/A 撤销生命周期通过。
 - tv053-underlap-editor.log：本轮编辑器回归通过，包括字号、行号、输入、补全和撤销。
 - output/qa053/capsule-frosted-scroll-light.png 与 capsule-frosted-scroll-dark.png：深浅色左右分栏、滚动文字磨砂层和第 120 条结果；前述 rounded-workspace 截图为上一版。系统全局透明度切换仍未实测。
+
+### 访达参考与空结果排版补验
+
+- 标签采用连续系统 thinMaterial 胶囊底座，少量标签等分可用宽度，多标签仍可横向滚动；活动项为内嵌原生玻璃胶囊，关闭叠层置于左侧，新建按钮为圆形原生玻璃。
+- 自有 NSSplitView 仅覆盖分隔条绘制，8 pt 空隙保留原生调整尺寸区域，不遍历 SwiftUI 私有视图。上下与左右分栏共用这一实现。
+- 空状态独立填满标题栏以下的剩余高度，标题、导出和刷新固定顶部；真实应用深浅色、上下与左右布局均检查。截图：finder-empty-horizontal-dark.png、finder-empty-stacked-dark.png、finder-empty-horizontal-light.png。
+- tv053-finder-viewport.log 通过：两个方向设置分栏尺寸不替换编辑器、首行与选区可见、A/B/A 撤销记录保留。后台拖动事件未使分隔位置变化，因此不将其计为物理鼠标拖动验收。
+- 构建记录 tv053-finder-final.log；本轮不涉及数据库执行逻辑和发行。

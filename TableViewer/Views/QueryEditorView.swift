@@ -20,51 +20,41 @@ struct QueryEditorView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 GeometryReader { geometry in
-                    QuerySplitContainer {
-                        // Both panes need 260 points plus the native divider.
-                        // Keep the preference, but stack panes in a narrow workspace.
-                        if horizontal && geometry.size.width >= 521 {
-                            HSplitView {
-                                editor.padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
-                                    .padding(.trailing, 4).frame(minWidth: 260, idealWidth: 440)
-                                results.padding(.top, 42).padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
-                                    .padding(.leading, 4).frame(minWidth: 260)
-                            }
-                        } else {
-                            VSplitView {
-                                editor.padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
-                                    .padding(.bottom, 4).frame(minHeight: 150, idealHeight: 260)
-                                results.padding(8).background(.background, in: RoundedRectangle(cornerRadius: 12))
-                                    .padding(.top, 4).frame(minHeight: 150)
-                            }
-                        }
+                    let sideBySide = horizontal && geometry.size.width >= 529
+                    QueryPaneSplit(vertical: sideBySide) {
+                        editor.padding(8)
+                            .background(.background, in: RoundedRectangle(cornerRadius: 12))
+                    } second: {
+                        results.padding(.top, sideBySide ? 42 : 0).padding(8)
+                            .background(.background, in: RoundedRectangle(cornerRadius: 12))
                     }
                 }
             }
             GlassEffectContainer(spacing: 6) {
             HStack(spacing: 8) {
+                GeometryReader { tabGeometry in
                 ScrollViewReader { proxy in
                 ScrollView(.horizontal) {
                     HStack(spacing: 0) {
                         ForEach(store.openScripts) { script in
                             ScriptTabItem(title: script.name,
+                                          width: max(156, (tabGeometry.size.width - 6) / CGFloat(max(1, store.openScripts.count))),
                                           isSelected: store.selectedScriptID == script.id,
                                           canClose: store.runningScriptID != script.id,
                                           select: { store.openScript(script.id) },
                                           close: { store.closeScript(script.id) },
                                           rename: { store.nameScript(script.id) })
                                 .id(script.id)
-                            if store.selectedScriptID != script.id {
-                                Divider().frame(height: 18)
-                            }
                         }
-                    }.padding(.vertical, 6)
+                    }.padding(3)
                 }.scrollIndicators(.hidden)
+                    .background(.thinMaterial, in: Capsule())
                     .onChange(of: store.selectedScriptID, initial: true) { _, id in
                         if let id { proxy.scrollTo(id, anchor: .center) }
                     }
                 }
-                Button { store.nameScript() } label: { Image(systemName: "plus").frame(width: 18, height: 16) }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
+                }.frame(height: 44)
+                Button { store.nameScript() } label: { Image(systemName: "plus").frame(width: 32, height: 32).glassEffect(.regular, in: Circle()) }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
                 Menu {
                     Section("最近 10 个脚本") {
                         let recent = Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))
@@ -210,6 +200,7 @@ struct QueryEditorView: View {
                 DataGrid(columns: store.queryResult.columns, rows: store.queryResult.rows, selectedID: store.querySelectedRows.first, selectedIDs: store.querySelectedRows, selectionChanged: { store.querySelectedRows = $0 })
             } else {
                 ContentUnavailableView(store.queryHasRun ? String(localized: "执行结束") : String(localized: "从一个好问题开始"), systemImage: "text.magnifyingglass", description: Text(store.queryHasRun ? String(localized: "\(store.queryResult.affectedRows) 行受影响。") : String(localized: "写下查询，按 ⌘↵，让数据给出答案。")))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             if store.queryResult.hasMore { Text("当前仅显示前 1,000 行或首批文档；请通过 LIMIT / skip 缩小范围。").font(.caption2).padding(8) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -220,6 +211,7 @@ struct QueryEditorView: View {
 // expanding into NavigationSplitView's sidebar safe area on macOS 27.
 private struct ScriptTabItem: View {
     let title: String
+    var width: CGFloat = 156
     let isSelected: Bool
     let canClose: Bool
     let select: () -> Void
@@ -236,14 +228,14 @@ private struct ScriptTabItem: View {
             Text(title).lineLimit(1).truncationMode(.tail)
                 .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .fontWeight(isSelected ? .semibold : .regular)
-                .padding(.horizontal, 14).frame(width: 156, height: 38)
+                .padding(.horizontal, 14).frame(width: width, height: 38)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain).focused($focus, equals: .title).help(title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: Text("关闭脚本")) { if canClose { close() } }
         .glassEffect(isSelected ? .regular : .identity, in: Capsule())
-        .overlay(alignment: .trailing) {
+        .overlay(alignment: .leading) {
             if showsClose {
                 Button(action: close) {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .medium))
@@ -253,7 +245,7 @@ private struct ScriptTabItem: View {
                 }
                 .buttonStyle(.plain).focused($focus, equals: .close)
                 .help("关闭脚本").accessibilityLabel("关闭脚本").disabled(!canClose)
-                .padding(.trailing, 5).transition(.opacity)
+                .padding(.leading, 5).transition(.opacity)
             }
         }
         .onHover { hovering = $0 }
@@ -261,6 +253,57 @@ private struct ScriptTabItem: View {
         .contextMenu {
             Button("重命名…", action: rename)
             Button("关闭脚本", action: close).disabled(!canClose)
+        }
+    }
+}
+
+// Own the split view so only this divider's drawing changes. Native dragging,
+// cursor feedback and accessibility remain NSSplitView behavior.
+private final class QueryDividerlessSplitView: NSSplitView {
+    override var dividerThickness: CGFloat { 8 }
+    override func drawDivider(in rect: NSRect) {}
+}
+
+private struct QueryPaneSplit<First: View, Second: View>: NSViewRepresentable {
+    var vertical: Bool
+    @ViewBuilder var first: () -> First
+    @ViewBuilder var second: () -> Second
+
+    final class Coordinator: NSObject, NSSplitViewDelegate {
+        let first: NSHostingView<First>
+        let second: NSHostingView<Second>
+        init(first: First, second: Second) {
+            self.first = NSHostingView(rootView: first)
+            self.second = NSHostingView(rootView: second)
+            super.init()
+            self.first.safeAreaRegions = []; self.second.safeAreaRegions = []
+            self.first.sizingOptions = []; self.second.sizingOptions = []
+        }
+        func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
+            min(splitView.isVertical ? 260 : 150, (splitView.isVertical ? splitView.bounds.width : splitView.bounds.height) / 2)
+        }
+        func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
+            let length = splitView.isVertical ? splitView.bounds.width : splitView.bounds.height
+            return max(length / 2, length - (splitView.isVertical ? 260 : 150) - splitView.dividerThickness)
+        }
+        func splitView(_ splitView: NSSplitView, canCollapseSubview subview: NSView) -> Bool { false }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(first: first(), second: second()) }
+    func makeNSView(context: Context) -> NSSplitView {
+        let split = QueryDividerlessSplitView()
+        split.isVertical = vertical
+        split.dividerStyle = .thin
+        split.delegate = context.coordinator
+        split.addArrangedSubview(context.coordinator.first)
+        split.addArrangedSubview(context.coordinator.second)
+        return split
+    }
+    func updateNSView(_ split: NSSplitView, context: Context) {
+        context.coordinator.first.rootView = first()
+        context.coordinator.second.rootView = second()
+        if split.isVertical != vertical {
+            split.isVertical = vertical
+            split.adjustSubviews()
         }
     }
 }
