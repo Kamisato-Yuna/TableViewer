@@ -28,7 +28,7 @@ struct QueryEditorView: View {
                         }
                     }
                 }
-                Button { store.nameScript() } label: { Image(systemName: "plus").frame(width: 20, height: 18) }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
+                Button { store.nameScript() } label: { Image(systemName: "plus").frame(width: 18, height: 16) }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
                 Menu {
                     Section("最近 10 个脚本") {
                         let recent = Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))
@@ -39,11 +39,12 @@ struct QueryEditorView: View {
                     }
                     Divider()
                     Button("更多历史…") { openWindow(id: "script-history") }
-                } label: { Image(systemName: "clock.arrow.circlepath").frame(width: 20, height: 18) }
+                } label: { Image(systemName: "clock.arrow.circlepath").frame(width: 18, height: 16) }
                 .menuStyle(.borderedButton)
                 .help("脚本历史").accessibilityLabel("脚本历史")
-                Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1").frame(width: 20, height: 18) }.help("切换上下或左右分栏")
-            }.buttonStyle(.glass).controlSize(.regular).font(.system(size: 13)).padding(12).disabled(store.busy)
+                Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1").frame(width: 18, height: 16) }.help("切换上下或左右分栏")
+            }.buttonStyle(.bordered).tint(.primary).controlSize(.regular)
+                .font(.system(size: 12, weight: .medium)).padding(12).disabled(store.busy)
             if store.selectedScriptID == nil {
                 ContentUnavailableView("新建命名脚本", systemImage: "doc.badge.plus", description: Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。"))
                 Button("新建脚本") { store.nameScript() }.padding()
@@ -107,7 +108,8 @@ struct QueryEditorView: View {
                 Spacer()
                 Button { Task { await store.runQuery() } } label: { Label(store.querySelection.length > 0 ? String(localized: "运行选区") : String(localized: "运行"), systemImage: "play.fill") }
                     .buttonStyle(.glassProminent).controlSize(.small).disabled(store.busy || store.query.isEmpty)
-            }.padding(12)
+            }.padding(.horizontal, 12).padding(.vertical, 8)
+            Divider()
             CodeEditor(text: scriptText, isJSON: store.active?.kind == .mongodb,
                        selectionChanged: { [weak store] range in
                            guard let store, store.selectedScriptID == scriptID else { return }
@@ -117,10 +119,12 @@ struct QueryEditorView: View {
                        retainView: { [weak store] view in
                            if let scriptID { store?.queryEditorViews[scriptID] = view }
                        }).id(scriptID)
+                .clipped()
+            Divider()
             HStack {
                 Text("⌘↵ 运行 · ⌘/ 注释 · ⌘Z 撤销 · ⇧⌘Z 重做").font(.caption2).foregroundStyle(.secondary)
                 Spacer()
-            }.padding(10)
+            }.padding(.horizontal, 10).padding(.vertical, 8)
         }
     }
     private var results: some View {
@@ -129,8 +133,8 @@ struct QueryEditorView: View {
                 Text("查询结果").font(.headline)
                 if store.statementResults.count > 1 {
                     Picker("结果", selection: $store.selectedResultIndex) {
-                        ForEach(store.statementResults.indices, id: \.self) { index in
-                            Text(String(localized: "语句") + " \(index + 1)" + (store.statementResults[index].failure == nil ? "" : " ⚠︎")).tag(index)
+                        ForEach(Array(store.statementResults.enumerated()), id: \.offset) { index, statement in
+                            Text(String(localized: "语句") + " \(index + 1)" + (statement.failure == nil ? "" : " ⚠︎")).tag(index)
                         }
                     }.labelsHidden().frame(maxWidth: 150)
                     .onChange(of: store.selectedResultIndex) { _, index in
@@ -236,6 +240,10 @@ struct CodeEditor: NSViewRepresentable {
             return retainedView
         }
         let scroll = NSScrollView()
+        // NSRulerView can draw outside its bounds on recent macOS versions.
+        // Clip at the scroll view, keeping the ruler and text in the code viewport.
+        scroll.wantsLayer = true
+        scroll.layer?.masksToBounds = true
         let view = QueryTextView(frame: .zero)
         scroll.documentView = view
         scroll.hasVerticalScroller = true
