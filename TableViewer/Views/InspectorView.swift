@@ -15,6 +15,7 @@ struct InspectorView: View {
             Divider()
             if store.tab != .data {
                 ContentUnavailableView("专注于\(store.tab.title)", systemImage: store.tab == .query ? "terminal" : "square.stack.3d.up", description: Text("返回数据页选择一条记录，查看和编辑字段。"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let row = store.selectedRow {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -52,8 +53,9 @@ struct InspectorView: View {
                 }.controlSize(.small).padding(16)
             } else {
                 ContentUnavailableView("选择一条记录", systemImage: "cursorarrow.click.2", description: Text("字段、类型和编辑选项会显示在这里。"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func field(row: DataRow, index: Int, column: ColumnInfo, original: CellValue) -> some View {

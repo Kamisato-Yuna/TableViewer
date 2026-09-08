@@ -6,7 +6,7 @@ import SwiftUI
         let source = (1...80).map { "-- line \($0) " + String(repeating: "abcdefghij ", count: 15) + "\nSELECT \($0);" }.joined(separator: "\n")
         var scroll: NSScrollView?
         let host = NSHostingView(rootView: QuerySplitContainer {
-            CodeEditor(text: .constant(source), retainView: { scroll = $0 })
+            CodeEditor(text: .constant(source), topContentInset: 40, retainView: { scroll = $0 })
         })
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 300), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.contentView = host
@@ -17,6 +17,21 @@ import SwiftUI
         settle()
         guard let scroll, let text = scroll.documentView as? QueryTextView,
               let layout = text.layoutManager, let container = text.textContainer else { fatalError("Editor did not mount") }
+        // Scrollable text extends below the overlaid toolbar; revealing a range
+        // must place it below that toolbar, including after jumping upward.
+        func assertBelowToolbar(_ range: NSRange) {
+            text.setSelectedRange(range)
+            text.scrollRangeToVisible(range)
+            settle()
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            var rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            rect.origin.y += text.textContainerOrigin.y
+            let inScroll = text.convert(rect, to: scroll)
+            precondition(inScroll.minY >= 40, "Revealed selection is covered by the frosted toolbar")
+        }
+        assertBelowToolbar((source as NSString).range(of: "SELECT 1;"))
+        assertBelowToolbar((source as NSString).range(of: "SELECT 60;"))
+        assertBelowToolbar((source as NSString).range(of: "SELECT 30;"))
         let selection = (source as NSString).range(of: "SELECT 80;")
         func selectionRect() -> NSRect {
             layout.ensureLayout(for: container)
