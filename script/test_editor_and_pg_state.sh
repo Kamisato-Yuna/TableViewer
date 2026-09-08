@@ -17,7 +17,7 @@ import sys
 source = pathlib.Path('TableViewer/Views/QueryEditorView.swift').read_text()
 pathlib.Path(sys.argv[1]).write_text('import SwiftUI\n' + source[source.index('struct CodeEditor:'):])
 editor = source[source.index('    private var editor:'):source.index('    private var results:')]
-host = 'import SwiftUI\nstruct QueryEditorHost: View {\n @Bindable var store: WorkspaceStore\n var body: some View { editor }\n' + editor + '}\n'
+host = 'import SwiftUI\nstruct QueryEditorHost: View {\n @State private var showRunHint = false\n @Bindable var store: WorkspaceStore\n var body: some View { editor }\n' + editor + '}\n'
 pathlib.Path(sys.argv[1]).with_name('EditorHost.swift').write_text(host)
 PY
 xcrun swiftc -module-cache-path "$test_directory/ModuleCache" \

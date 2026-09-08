@@ -6,7 +6,7 @@ struct WorkspaceView: View {
     @Bindable var store: WorkspaceStore
     @State private var trailingPanelWidth: CGFloat = 290
     private var trailingPanelVisible: Bool { store.tab == .agent ? store.showAgentSessions : store.showInspector && WorkspaceTab.basic.contains(store.tab) }
-    @AppStorage("showAutomaticEstimates") private var showAutomaticEstimates = true
+    @AppStorage("showAutomaticEstimates") private var showAutomaticEstimates = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         NavigationSplitView {
@@ -53,6 +53,23 @@ struct WorkspaceView: View {
         .sheet(isPresented: $store.showConnectionSheet) { ConnectionSheet(store: store, existing: store.editingProfile) }
         .sheet(isPresented: $store.showCellEditor) { CellEditorSheet(store: store) }
         .sheet(isPresented: $store.showInsert) { InsertSheet(store: store) }
+        .sheet(isPresented: $store.browseEstimateExpanded) {
+            VStack(alignment: .leading, spacing: 16) {
+                if let estimate = store.browseEstimate {
+                    Text(estimate.summary).font(.headline)
+                    ScrollView([.horizontal, .vertical]) {
+                        Text(verbatim: estimate.details).font(.caption.monospaced())
+                            .textSelection(.enabled).fixedSize(horizontal: true, vertical: true)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                HStack {
+                    Button("关闭查询预估") { store.setEstimatesEnabled(false) }
+                    Spacer()
+                    Button("完成") { store.browseEstimateExpanded = false }
+                        .keyboardShortcut(.cancelAction)
+                }
+            }.padding(24).frame(width: 620, height: 420)
+        }
         .alert("操作未完成", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("好", role: .cancel) { store.error = nil }
         } message: { Text(store.error ?? "") }
@@ -103,7 +120,7 @@ struct WorkspaceView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(WorkspaceTab.basic.contains(store.tab) && store.tab != .query ? store.selectedObject?.name ?? String(localized: "数据库") : store.tab == .query ? String(localized: "查询工作台") : store.tab == .shell ? "Mongo Shell" : store.tab == .replica ? String(localized: "副本集") : store.tab == .overview ? String(localized: "对象概览") : store.tab == .relationships ? String(localized: "实体关系") : String(localized: "Agent 助手"))
                         .font(.system(size: 23, weight: .semibold, design: .rounded))
-                    Text(store.tab == .overview || store.tab == .relationships ? (store.active?.name ?? "") : store.tab == .query ? (store.active?.kind == .mongodb ? String(localized: "MongoDB · JSON 命令") : String(localized: "SQL 编辑器 · ⌘↵ 运行")) : String(localized: "\(store.selectedObject?.schema.isEmpty == false ? store.selectedObject!.schema + " / " : "")\(store.active?.name ?? "")  /  \(store.selectedObject?.isView == true ? String(localized: "视图") : store.active?.kind == .mongodb ? String(localized: "集合") : String(localized: "数据表"))"))
+                    Text(store.tab == .overview || store.tab == .relationships ? (store.active?.name ?? "") : store.tab == .query ? (store.active?.kind == .mongodb ? String(localized: "MongoDB · JSON 命令") : String(localized: "SQL 编辑器")) : String(localized: "\(store.selectedObject?.schema.isEmpty == false ? store.selectedObject!.schema + " / " : "")\(store.active?.name ?? "")  /  \(store.selectedObject?.isView == true ? String(localized: "视图") : store.active?.kind == .mongodb ? String(localized: "集合") : String(localized: "数据表"))"))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 6)
@@ -157,22 +174,17 @@ struct WorkspaceView: View {
             else if store.tab == .agent { AgentView(store: store) }
             else {
                 tableActions
-                if store.showBrowseEstimate, let estimate = store.browseEstimate {
-                    DisclosureGroup(estimate.summary, isExpanded: $store.browseEstimateExpanded) {
-                        // Keep plan text out of the split view's intrinsic size calculation.
-                        // Long plans otherwise trigger recursive AppKit constraint updates.
-                        ScrollView([.horizontal, .vertical]) {
-                            Text(verbatim: estimate.details)
-                                .font(.caption.monospaced())
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: true, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                if store.estimatesEnabled, store.showBrowseEstimate, let estimate = store.browseEstimate {
+                    Button { store.browseEstimateExpanded = true } label: {
+                        HStack {
+                            Text(estimate.summary).lineLimit(1)
+                            Image(systemName: "chevron.right").font(.caption2)
+                            Spacer()
                         }
-                        .frame(height: 160)
                     }
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .buttonStyle(.plain).font(.caption2).foregroundStyle(.secondary)
                     .padding(.horizontal, 24).padding(.bottom, 6)
-                } else if store.showBrowseEstimate && store.browseEstimateLoading {
+                } else if store.estimatesEnabled && store.showBrowseEstimate && store.browseEstimateLoading {
                     HStack {
                         ProgressView().controlSize(.small)
                         Text("正在估算…").font(.caption2).foregroundStyle(.secondary)
@@ -231,7 +243,7 @@ struct WorkspaceView: View {
             Text("\(store.visibleRows.count) 条记录").foregroundStyle(.secondary)
             if store.result.elapsed > 0 { Text("·").foregroundStyle(.quaternary); Text(String(format: "%.0f ms", store.result.elapsed * 1000)).foregroundStyle(.tertiary) }
             Spacer()
-            Text("每页 200 条").foregroundStyle(.tertiary)
+            Text("每页 \(store.pageSize) 条").foregroundStyle(.tertiary)
             Button { Task { await store.changePage(-1) } } label: { Image(systemName: "chevron.left") }.disabled(store.page == 0 || store.busy || store.hasChanges)
             Text("第 \(store.page + 1) 页").monospacedDigit().foregroundStyle(.secondary)
             Button { Task { await store.changePage(1) } } label: { Image(systemName: "chevron.right") }.disabled(!store.result.hasMore || store.busy || store.hasChanges)
@@ -365,7 +377,7 @@ struct SidebarView: View {
             HStack {
                 Button { store.editingProfile = nil; store.showConnectionSheet = true } label: { Label("新建连接", systemImage: "plus.circle") }
                 Spacer()
-                SettingsLink { Image(systemName: "gearshape") }.help("设置")
+                Button { store.openSettings() } label: { Image(systemName: "gearshape") }.help("设置")
             }.buttonStyle(.borderless).font(.system(size: 11)).foregroundStyle(.secondary).padding(20)
         }
     }

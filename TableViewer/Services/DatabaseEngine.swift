@@ -124,20 +124,22 @@ actor DatabaseEngine {
         }
     }
 
-    func browse(_ object: DatabaseObject, page: Int = 0, sort: String? = nil, ascending: Bool = true, condition: String = "") throws -> QueryResult {
+    func browse(_ object: DatabaseObject, page: Int = 0, sort: String? = nil, ascending: Bool = true, condition: String = "", pageSize: Int = DatabaseEngine.pageSize) throws -> QueryResult {
         let start = Date()
+        let pageSize = max(1, min(10000, pageSize))
+        let page = max(0, page)
         guard let profile else { throw DatabaseFailure(String(localized: "未连接。")) }
         var result: QueryResult
         if profile.kind == .mongodb {
-            var command: [String: Any] = ["find": object.name, "filter": condition.isEmpty ? [:] : try jsonObject(condition), "skip": page * Self.pageSize, "limit": Self.pageSize + 1, "batchSize": Self.pageSize + 1, "maxTimeMS": 15000]
+            var command: [String: Any] = ["find": object.name, "filter": condition.isEmpty ? [:] : try jsonObject(condition), "skip": page * pageSize, "limit": pageSize + 1, "batchSize": pageSize + 1, "maxTimeMS": 15000]
             command["sort"] = [sort ?? "_id": ascending ? 1 : -1]
             var response = try mongoCommand(command)
             var cursor = response["cursor"] as? [String: Any] ?? [:]
             var documents = cursor["firstBatch"] as? [[String: Any]] ?? []
             var cursorID = numericValue(cursor["id"])
             defer { if cursorID != 0 { _ = try? mongoCommand(["killCursors": object.name, "cursors": [["$numberLong": String(cursorID)]]]) } }
-            while cursorID != 0 && documents.count < Self.pageSize + 1 {
-                let more = try mongoCommand(["getMore": ["$numberLong": String(cursorID)], "collection": object.name, "batchSize": Self.pageSize + 1 - documents.count])
+            while cursorID != 0 && documents.count < pageSize + 1 {
+                let more = try mongoCommand(["getMore": ["$numberLong": String(cursorID)], "collection": object.name, "batchSize": pageSize + 1 - documents.count])
                 cursor = more["cursor"] as? [String: Any] ?? [:]
                 documents += cursor["nextBatch"] as? [[String: Any]] ?? []
                 cursorID = numericValue(cursor["id"])
@@ -149,12 +151,12 @@ actor DatabaseEngine {
             let ordering = sort.map { [quoteIdentifier($0) + (ascending ? " ASC" : " DESC")] } ?? metadata.filter(\.isPrimaryKey).map { quoteIdentifier($0.name) }
             let order = ordering.isEmpty ? "" : " ORDER BY " + ordering.joined(separator: ", ")
             let filter = condition.isEmpty ? "" : " WHERE (" + condition + ")"
-            let query = "SELECT * FROM \(object.qualifiedName)\(filter)\(order) LIMIT \(Self.pageSize + 1) OFFSET \(page * Self.pageSize)"
+            let query = "SELECT * FROM \(object.qualifiedName)\(filter)\(order) LIMIT \(pageSize + 1) OFFSET \(page * pageSize)"
             result = condition.isEmpty ? try sql(query) : try run(query, readOnly: true)
             result.columns = result.columns.map { col in metadata.first { $0.name == col.name } ?? col }
         }
-        result.hasMore = result.rows.count > Self.pageSize
-        result.rows = Array(result.rows.prefix(Self.pageSize))
+        result.hasMore = result.rows.count > pageSize
+        result.rows = Array(result.rows.prefix(pageSize))
         result.elapsed = Date().timeIntervalSince(start)
         return result
     }

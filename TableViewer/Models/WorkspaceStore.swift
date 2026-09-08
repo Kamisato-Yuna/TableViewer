@@ -28,6 +28,16 @@ struct ShellEntry: Identifiable {
     var failed = false
 }
 
+struct ScriptSessionResult {
+    var statements: [StatementResult] = []
+    var result = QueryResult()
+    var selectedIndex = 0
+    var hasRun = false
+    var failure: String?
+    var selection = NSRange(location: 0, length: 0)
+    var selectedRows = Set<UUID>()
+}
+
 @MainActor @Observable final class WorkspaceStore {
     let engine = DatabaseEngine()
     var profiles: [ConnectionProfile] = []
@@ -66,13 +76,80 @@ struct ShellEntry: Identifiable {
     var documentDraft = ""
     var objectSearch = ""
     var rowSearch = ""
-    var tab = WorkspaceTab.overview
+    var tab = WorkspaceTab.overview {
+        didSet { if oldValue != tab { slowSuggestionTask?.cancel(); showSlowQuerySuggestion = false } }
+    }
+    var showSettings = false
+    var settingsSection = "general"
+    func openSettings(section: String? = nil) {
+        guard !showSettings else { return }
+        settingsSection = section ?? (tab == .query || tab == .shell ? "editor" : tab == .data || tab == .structure ? "data" : tab == .agent ? "execution" : "general")
+        showSettings = true
+    }
+    var pageSize = max(1, min(10000, UserDefaults.standard.object(forKey: "pageSize") as? Int ?? 200))
+    func updatePageSize(_ size: Int) async {
+        guard size != pageSize, allowNavigation() else { return }
+        pageSize = max(1, min(10000, size)); page = 0
+        UserDefaults.standard.set(pageSize, forKey: "pageSize")
+        await refresh()
+    }
     var query = "" { didSet { if let selectedScriptID { do { try scripts.save(selectedScriptID, text: query); scriptSaveError = nil } catch { scriptSaveError = error.localizedDescription; report(error) } } } }
     let scripts: ScriptLibrary
     @ObservationIgnored var queryEditorViews: [UUID: NSScrollView] = [:]
     var selectedScriptID: UUID?
+    var scriptResults: [UUID: ScriptSessionResult] = [:]
+    var runningScriptID: UUID?
+    var showSlowQuerySuggestion = false
+    var estimatesEnabled = UserDefaults.standard.object(forKey: "queryEstimatesEnabled") as? Bool ?? false
+    func setEstimatesEnabled(_ enabled: Bool) {
+        estimatesEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "queryEstimatesEnabled")
+        if !enabled { browseEstimate = nil; browseEstimateExpanded = false }
+        showSlowQuerySuggestion = false
+    }
+    func saveCurrentScriptResult() {
+        guard let id = selectedScriptID else { return }
+        if id == runningScriptID {
+            scriptResults[id, default: ScriptSessionResult()].selection = querySelection
+            return
+        }
+        scriptResults[id] = ScriptSessionResult(statements: statementResults, result: queryResult, selectedIndex: selectedResultIndex, hasRun: queryHasRun, failure: queryFailure, selection: querySelection, selectedRows: querySelectedRows)
+    }
+    func restoreScriptResult(_ id: UUID?) {
+        let state = id.flatMap { scriptResults[$0] } ?? ScriptSessionResult()
+        selectedResultIndex = 0
+        statementResults = state.statements
+        selectedResultIndex = state.statements.indices.contains(state.selectedIndex) ? state.selectedIndex : 0
+        queryResult = state.result; queryHasRun = state.hasRun; queryFailure = state.failure; querySelection = state.selection; querySelectedRows = state.selectedRows
+    }
+    func closeScript(_ id: UUID) {
+        guard id != runningScriptID else { return }
+        do {
+            try scripts.close(id)
+            queryEditorViews.removeValue(forKey: id); scriptResults.removeValue(forKey: id)
+            if selectedScriptID == id {
+                selectedScriptID = nil; query = ""; restoreScriptResult(nil)
+                if let next = openScripts.first { openScript(next.id) }
+            }
+        } catch { report(error) }
+    }
+    func openHistoricalScript(_ id: UUID) async -> Bool {
+        guard allowNavigation(), let script = scripts.scripts.first(where: { $0.id == id }) else { return false }
+        do { _ = try String(contentsOf: scripts.directory.appendingPathComponent(script.filename), encoding: .utf8) }
+        catch { report(DatabaseFailure(String(localized: "脚本文件无法读取，请恢复原文件后重试：") + script.filename)); return false }
+        if active?.id != script.connectionID {
+            guard let profile = profiles.first(where: { $0.id == script.connectionID }) else {
+                report(DatabaseFailure(String(localized: "原连接已删除。脚本保留在本地，可从脚本目录复制内容到新脚本。"))); return false
+            }
+            await connect(profile)
+            guard active?.id == profile.id else { return false }
+        }
+        openScript(id)
+        return selectedScriptID == id
+    }
     var querySelection = NSRange(location: 0, length: 0)
     var statementResults: [StatementResult] = []
+    var querySelectedRows = Set<UUID>()
     var selectedResultIndex = 0
     var queryFailure: String?
     var showScriptName = false
@@ -80,7 +157,7 @@ struct ShellEntry: Identifiable {
     var scriptName = ""
     var readOnly = false
     var browseEstimate: QueryEstimate?
-    var showBrowseEstimate = UserDefaults.standard.object(forKey: "showAutomaticEstimates") as? Bool ?? true
+    var showBrowseEstimate = UserDefaults.standard.object(forKey: "showAutomaticEstimates") as? Bool ?? false
     var browseEstimateExpanded = false
     var browseEstimateLoading = false
     var scriptSaveError: String?
@@ -246,6 +323,7 @@ struct ShellEntry: Identifiable {
         }
         await shell.stop(); shellEntries = []; shellHistory = []; shellInput = ""; shellDatabase = profile.database
         replicaSnapshot = nil; replicaError = nil
+        saveCurrentScriptResult()
         queryEditorViews.removeAll()
         selectedScriptID = nil; queryResult = QueryResult(); queryHasRun = false; queryHistory = []; query = ""
         do {
@@ -257,7 +335,7 @@ struct ShellEntry: Identifiable {
             queryResult = QueryResult(); queryHasRun = false; queryHistory = []
             query = profile.kind == .mongodb ? "{\n  \"find\": \"\(loaded.first?.name ?? "collection")\",\n  \"filter\": {},\n  \"limit\": 100\n}" : "SELECT * FROM \(loaded.first?.qualifiedName ?? "table_name") LIMIT 100;"
             if let script = scripts.scripts.first(where: { $0.connectionID == profile.id && $0.isOpen }) {
-                query = try scripts.open(script.id); selectedScriptID = script.id
+                query = try scripts.open(script.id); selectedScriptID = script.id; restoreScriptResult(script.id)
             }
             status = String(localized: "已连接")
         } catch {
@@ -284,7 +362,7 @@ struct ShellEntry: Identifiable {
             if reloadObjects { objects = try await engine.objects() }
             if let selectedObject {
                 await loadBrowseEstimate()
-                result = try await engine.browse(selectedObject, page: page, sort: sortColumn, ascending: sortAscending, condition: appliedCondition)
+                result = try await engine.browse(selectedObject, page: page, sort: sortColumn, ascending: sortAscending, condition: appliedCondition, pageSize: pageSize)
                 selectRow(result.rows.first?.id)
                 if showBrowseEstimate && browseEstimate == nil { await loadBrowseEstimate() }
             }
@@ -300,7 +378,7 @@ struct ShellEntry: Identifiable {
     }
 
     private func loadBrowseEstimate() async {
-        guard showBrowseEstimate, let object = selectedObject, let connection = active else { return }
+        guard estimatesEnabled, showBrowseEstimate, let object = selectedObject, let connection = active else { return }
         let condition = appliedCondition
         browseEstimateExpanded = false
         browseEstimateLoading = true
@@ -313,7 +391,7 @@ struct ShellEntry: Identifiable {
         if let browseEstimator { estimate = await browseEstimator(query) }
         else { estimate = await engine.estimate(query) }
         // A hidden bar must not reappear when an already running estimate completes.
-        guard showBrowseEstimate, active?.id == connection.id, selectedObject == object, appliedCondition == condition else { return }
+        guard estimatesEnabled, showBrowseEstimate, active?.id == connection.id, selectedObject == object, appliedCondition == condition else { return }
         browseEstimate = estimate
         browseEstimateExpanded = false
     }
@@ -418,14 +496,14 @@ struct ShellEntry: Identifiable {
         guard alert.runModal() == .alertSecondButtonReturn else { return }
         appliedCondition = condition; page = 0; _ = await refresh()
     }
-    func confirmEstimate(_ estimate: QueryEstimate) async -> Bool {
+    func confirmEstimate(_ estimate: QueryEstimate, optionalEstimate: Bool = false) async -> Bool {
         guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.identifier?.rawValue == "workspace" }) ?? NSApp.windows.first(where: { $0.isVisible }), window.attachedSheet == nil else { return false }
         let width = min(840, max(320, window.contentLayoutRect.width - 40))
         let height = min(620, max(260, window.contentLayoutRect.height - 60))
         return await withCheckedContinuation { continuation in
             let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: width, height: height), styleMask: [.titled], backing: .buffered, defer: false)
-            panel.title = String(localized: "执行前规模预估")
-            panel.contentView = NSHostingView(rootView: ExecutionEstimateSheet(estimate: estimate) { approved in
+            panel.title = optionalEstimate ? String(localized: "执行前规模预估") : String(localized: "执行确认")
+            panel.contentView = NSHostingView(rootView: ExecutionEstimateSheet(estimate: estimate, isOptional: optionalEstimate, disableEstimates: { self.setEstimatesEnabled(false) }) { approved in
                 window.endSheet(panel, returnCode: approved ? .OK : .cancel)
             }.frame(width: width, height: height))
             window.beginSheet(panel) { response in
@@ -438,12 +516,14 @@ struct ShellEntry: Identifiable {
 
     var openScripts: [SavedScript] { scripts.scripts.filter { $0.connectionID == active?.id && $0.isOpen } }
     func openScript(_ id: UUID) {
-        guard allowNavigation(), scripts.scripts.first(where: { $0.id == id })?.connectionID == active?.id else { return }
+        guard (!busy || runningScriptID != nil), !hasChanges, !showQueryApproval, scripts.scripts.first(where: { $0.id == id })?.connectionID == active?.id else { return }
         do {
             let text = try scripts.open(id)
+            saveCurrentScriptResult()
             selectedScriptID = nil; query = text; selectedScriptID = id
+            showSlowQuerySuggestion = false; slowSuggestionTask?.cancel()
             querySelection = NSRange(location: 0, length: 0); tab = .query
-            statementResults = []; queryResult = QueryResult(); queryHasRun = false; queryFailure = nil
+            restoreScriptResult(id)
         } catch { report(error) }
     }
     func nameScript(_ id: UUID? = nil) {
@@ -458,14 +538,41 @@ struct ShellEntry: Identifiable {
             showScriptName = false
         } catch { report(error) }
     }
+    @ObservationIgnored private var slowSuggestionTask: Task<Void, Never>?
     func runQuery(approved: Bool = false) async {
+        guard !showSettings else { return }
+        await withTaskCancellationHandler {
+            await performQuery(approved: approved)
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.slowSuggestionTask?.cancel()
+                self?.showSlowQuerySuggestion = false
+            }
+        }
+    }
+    private func performQuery(approved: Bool) async {
         guard allowNavigation(), let active else { return }
         let source = query as NSString
         let selected = querySelection.length > 0 && NSMaxRange(querySelection) <= source.length ? source.substring(with: querySelection) : query
         let sql = approved ? pendingQuery ?? selected : selected
         guard !sql.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         busy = true; status = String(localized: "执行查询…")
-        defer { busy = false }
+        if selectedScriptID == nil {
+            do { selectedScriptID = try scripts.create(name: String(localized: "查询") + " " + Date().formatted(date: .omitted, time: .shortened), connectionID: active.id, text: query) }
+            catch { busy = false; report(error); return }
+        }
+        let ownerID = selectedScriptID
+        let ownerConnection = active.id
+        var completed = ScriptSessionResult()
+        defer {
+            slowSuggestionTask?.cancel(); slowSuggestionTask = nil; showSlowQuerySuggestion = false
+            if let ownerID, runningScriptID == ownerID {
+                completed.selection = selectedScriptID == ownerID ? querySelection : scriptResults[ownerID]?.selection ?? completed.selection
+                scriptResults[ownerID] = completed
+                if selectedScriptID == ownerID && self.active?.id == ownerConnection { restoreScriptResult(ownerID) }
+            }
+            runningScriptID = nil; busy = false
+        }
         do {
             let isPostgres = active.kind == .postgresql
             var statements: [String] = []
@@ -474,7 +581,7 @@ struct ShellEntry: Identifiable {
                 let standardStrings = try await engine.postgreSQLStandardConformingStrings()
                 guard let first = try SQLScript.nextPostgreSQLStatement(sql, standardConformingStrings: standardStrings) else { return }
                 statements = [first.statement]
-                if !approved {
+                if !approved && estimatesEnabled {
                     estimates = [await engine.estimate(first.statement)]
                     if !first.remainder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         estimates.append(QueryEstimate(severity: .unknown, summary: String(localized: "后续语句规模未知；先前语句可能改变对象或会话设置，将按执行时状态逐条解析。")))
@@ -482,13 +589,35 @@ struct ShellEntry: Identifiable {
                 }
             } else {
                 statements = try SQLScript.statements(sql, kind: active.kind)
-                if !approved {
+                if !approved && estimatesEnabled {
                     estimates = []
                     for statement in statements { estimates.append(await engine.estimate(statement)) }
                 }
             }
-            if !approved && estimates.contains(where: { $0.severity != .normal }) { pendingQuery = sql; showQueryApproval = true; return }
-            pendingQuery = nil; queryFailure = nil; statementResults = []; selectedResultIndex = 0
+            // Keep review for commands whose effects cannot be treated as a read,
+            // independently of optional EXPLAIN planning.
+            let words = SQLScript.tokens(sql)
+            let mutating = Set(["INSERT", "UPDATE", "DELETE", "REPLACE", "DROP", "ALTER", "CREATE", "TRUNCATE", "ATTACH", "DETACH", "VACUUM", "COPY", "CALL", "DO"])
+            let readCommand = ["SELECT", "WITH", "VALUES", "SHOW", "EXPLAIN"].contains(words.first ?? "") && mutating.isDisjoint(with: words)
+            let mongoRead = active.kind == .mongodb && ((try? jsonObject(sql)).map { $0["find"] != nil || $0["count"] != nil || $0["distinct"] != nil } ?? false)
+            if !approved && !estimatesEnabled && !(active.kind == .mongodb ? mongoRead : readCommand) {
+                estimates = [QueryEstimate(severity: .unknown, summary: String(localized: "执行确认：此脚本可能修改数据库或会话状态。请核对操作范围。"))]
+                pendingQuery = sql; showQueryApproval = true; return
+            }
+            if !approved && estimatesEnabled && estimates.contains(where: { $0.severity != .normal }) { pendingQuery = sql; showQueryApproval = true; return }
+            pendingQuery = nil
+            runningScriptID = ownerID
+            completed.selection = querySelection
+            if !estimatesEnabled && !UserDefaults.standard.bool(forKey: "slowQuerySuggestionShown") {
+                slowSuggestionTask = Task { @MainActor [weak self] in
+                    do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                    guard let self, !Task.isCancelled, self.runningScriptID == ownerID,
+                          self.selectedScriptID == ownerID, self.active?.id == ownerConnection,
+                          self.tab == .query, !self.showSettings, !self.estimatesEnabled else { return }
+                    UserDefaults.standard.set(true, forKey: "slowQuerySuggestionShown")
+                    self.showSlowQuerySuggestion = true
+                }
+            }
             var index = 0
             while isPostgres || index < statements.count {
                 var statement = remaining
@@ -500,21 +629,23 @@ struct ShellEntry: Identifiable {
                     } else {
                         statement = statements[index]; index += 1
                     }
+                    try Task.checkCancellation()
                     let result = try await engine.run(statement, readOnly: readOnly)
-                    statementResults.append(StatementResult(statement: statement, result: result))
+                    try Task.checkCancellation()
+                    completed.statements.append(StatementResult(statement: statement, result: result))
                 } catch {
-                    statementResults.append(StatementResult(statement: statement, failure: error.localizedDescription))
-                    queryFailure = error.localizedDescription; break
+                    completed.statements.append(StatementResult(statement: statement, failure: error.localizedDescription))
+                    completed.failure = error.localizedDescription; break
                 }
             }
-            queryResult = statementResults.first?.result ?? QueryResult(); queryHasRun = !statementResults.isEmpty; rowSearch = ""
+            completed.result = completed.statements.first?.result ?? QueryResult(); completed.hasRun = !completed.statements.isEmpty
             if selectedScriptID == nil {
                 let id = try scripts.create(name: String(localized: "查询") + " " + Date().formatted(date: .omitted, time: .shortened), connectionID: active.id, text: query)
                 selectedScriptID = id
             }
             objects = try await engine.objects()
-            status = queryFailure == nil ? String(localized: "查询完成") : String(localized: "执行失败，后续语句未运行；先前自动提交的写入不会回滚。")
-        } catch { queryFailure = error.localizedDescription; status = String(localized: "操作未完成") }
+            status = completed.failure == nil ? String(localized: "查询完成") : String(localized: "执行失败，后续语句未运行；先前自动提交的写入不会回滚。")
+        } catch { completed.failure = error.localizedDescription; status = String(localized: "操作未完成") }
     }
 
     func changePage(_ delta: Int) async { guard allowNavigation() else { return }; page = max(0, page + delta); await refresh() }
@@ -619,12 +750,12 @@ struct ShellEntry: Identifiable {
         do {
             busy = true
             defer { busy = false }
-            if let query = proposed.query {
+            if estimatesEnabled, let query = proposed.query {
                 let estimate = await engine.estimate(query)
                 if let index = session.actions.firstIndex(where: { $0.id == id }) { session.actions[index].executionEstimate = estimate.summary + "\n" + estimate.details }
                 if estimate.severity != .normal {
                     if automatic && requiresReadOnly { return } // Await manual review when automatic read planning is uncertain/large.
-                    if !automatic { guard await confirmEstimate(estimate) else { return } }
+                    if !automatic { guard await confirmEstimate(estimate, optionalEstimate: true) else { return } }
                 }
             }
         }
@@ -675,10 +806,12 @@ struct ShellEntry: Identifiable {
 
 private struct ExecutionEstimateSheet: View {
     let estimate: QueryEstimate
+    let isOptional: Bool
+    let disableEstimates: () -> Void
     let finish: (Bool) -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("执行前规模预估", systemImage: "exclamationmark.triangle")
+            Label(isOptional ? String(localized: "执行前规模预估") : String(localized: "执行确认"), systemImage: "exclamationmark.triangle")
                 .font(.title2.bold()).foregroundStyle(estimate.severity == .excessive ? Color.red : Color.orange)
             ScrollView(.vertical) {
                 Text(verbatim: estimate.summary).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
@@ -693,6 +826,7 @@ private struct ExecutionEstimateSheet: View {
             Divider()
             HStack {
                 Spacer()
+                if isOptional { Button("关闭查询预估") { disableEstimates(); finish(false) } }
                 Button("取消") { finish(false) }.keyboardShortcut(.cancelAction)
                 Button("继续执行") { finish(true) }.keyboardShortcut(.defaultAction).buttonStyle(.glassProminent)
             }.controlSize(.large)

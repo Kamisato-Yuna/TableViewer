@@ -10,7 +10,7 @@ directory = Path(sys.argv[1])
 container = source[source.index('private struct QuerySplitContainer'):source.index('struct ScriptLibraryView:')].replace('private struct', 'struct', 1)
 directory.joinpath('CodeEditor.swift').write_text('import SwiftUI\n' + container + source[source.index('struct CodeEditor:'):])
 editor = source[source.index('    private var editor:'):source.index('    private var results:')]
-directory.joinpath('EditorHost.swift').write_text('import SwiftUI\nstruct QueryEditorHost: View { @Bindable var store: WorkspaceStore\nvar body: some View { QuerySplitContainer { editor } }\n' + editor + '}\n')
+directory.joinpath('EditorHost.swift').write_text('import SwiftUI\nstruct QueryEditorHost: View { @State private var showRunHint = false; @Bindable var store: WorkspaceStore\nvar body: some View { QuerySplitContainer { editor } }\n' + editor + '}\n')
 PY
 xcrun swiftc -module-cache-path "$test_directory/ModuleCache" "$test_directory/CodeEditor.swift" Tests/EditorViewportTests.swift -o "$test_directory/viewport"
 "$test_directory/viewport"

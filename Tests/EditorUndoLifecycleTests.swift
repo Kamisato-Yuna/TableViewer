@@ -8,6 +8,9 @@ import Observation
  var querySelection = NSRange(location: 0, length: 0)
  var active: ConnectionProfile? = ConnectionProfile()
  var busy = false
+ var objects: [DatabaseObject] = []
+ var showSlowQuerySuggestion = false
+ func setEstimatesEnabled(_ enabled: Bool) {}
  @ObservationIgnored var queryEditorViews: [UUID: NSScrollView] = [:]
  func runQuery() async {}
 }
