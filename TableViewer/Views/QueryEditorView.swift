@@ -41,15 +41,13 @@ struct QueryEditorView: View {
                     Divider()
                     Button("更多历史…") { openWindow(id: "script-history") }
                 } label: { Image(systemName: "clock.arrow.circlepath").frame(width: 18, height: 16) }
-                .menuStyle(.borderedButton)
+                .menuStyle(.borderlessButton)
                 .help("脚本历史").accessibilityLabel("脚本历史")
                 Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1").frame(width: 18, height: 16) }.help("切换上下或左右分栏")
-            }.buttonStyle(.bordered).tint(.primary).controlSize(.regular)
+            }.buttonStyle(.plain).tint(.primary).controlSize(.regular)
                 .font(.system(size: 12, weight: .medium))
                 .padding(.horizontal, 12)
-                .background {
-                    Color.clear.glassEffect(.regular, in: Rectangle())
-                }
+                .background(.bar)
             if store.selectedScriptID == nil {
                 ContentUnavailableView {
                     Label("新建命名脚本", systemImage: "doc.badge.plus")
@@ -133,7 +131,7 @@ struct QueryEditorView: View {
                     .buttonStyle(.glassProminent).controlSize(.small).disabled(store.busy || store.query.isEmpty)
 
             }.padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Color(nsColor: .windowBackgroundColor))
+                .background(.bar)
             if store.showSlowQuerySuggestion {
                 HStack {
                     Text("查询已超过 5 秒，可开启查询前预估。").font(.caption)
@@ -231,7 +229,7 @@ private struct ScriptTabItem: View {
                 Button(action: close) {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .medium))
                         .frame(width: 28, height: 28)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 6))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).focused($focus, equals: .close)
