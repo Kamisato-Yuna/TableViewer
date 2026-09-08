@@ -102,8 +102,6 @@ def main():
     for name in ("styles.css", "app.js"):
         shutil.copy2(ROOT / "site" / name, args.output / name)
     shutil.copytree(ROOT / "site/assets", args.output / "assets", dirs_exist_ok=True)
-    shutil.copy2(ROOT / "docs/screenshots/workspace-zh-Hans.png", args.output / "assets/workspace-dark-zh-Hans.png")
-    shutil.copy2(ROOT / "docs/screenshots/workspace-light-zh-Hans.png", args.output / "assets/workspace-light-zh-Hans.png")
     (args.output / "index.html").write_text(rendered)
     (args.output / "appcast.xml").write_bytes(feed)
     (args.output / ".nojekyll").touch()
