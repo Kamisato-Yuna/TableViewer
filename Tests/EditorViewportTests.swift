@@ -6,7 +6,7 @@ import SwiftUI
         let source = (1...80).map { "-- line \($0) " + String(repeating: "abcdefghij ", count: 15) + "\nSELECT \($0);" }.joined(separator: "\n")
         var scroll: NSScrollView?
         let host = NSHostingView(rootView: QuerySplitContainer {
-            CodeEditor(text: .constant(source), topContentInset: 82, retainView: { scroll = $0 })
+            CodeEditor(text: .constant(source), topContentInset: 40, retainView: { scroll = $0 })
         })
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 300), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
         window.contentView = host
@@ -27,7 +27,7 @@ import SwiftUI
             var rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
             rect.origin.y += text.textContainerOrigin.y
             let inScroll = text.convert(rect, to: scroll)
-            precondition(inScroll.minY >= 82, "Revealed selection is covered by the frosted toolbar")
+            precondition(inScroll.minY >= 40, "Revealed selection is covered by the frosted toolbar")
         }
         assertBelowToolbar((source as NSString).range(of: "SELECT 1;"))
         assertBelowToolbar((source as NSString).range(of: "SELECT 60;"))

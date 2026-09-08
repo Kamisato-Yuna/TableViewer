@@ -6,30 +6,7 @@ struct QueryEditorView: View {
     @AppStorage("queryHorizontal") private var horizontal = false
     @State private var showRunHint = false
     var body: some View {
-        // Keep scrolling content beneath the system material so the header
-        // samples the document, rather than an empty background above it.
-        ZStack(alignment: .top) {
-            if store.selectedScriptID == nil {
-                ContentUnavailableView {
-                    Label("新建命名脚本", systemImage: "doc.badge.plus")
-                } description: {
-                    Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。")
-                } actions: {
-                    Button("新建脚本") { store.nameScript() }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                GeometryReader { geometry in
-                    let sideBySide = horizontal && geometry.size.width >= 529
-                    QueryPaneSplit(vertical: sideBySide) {
-                        editor.padding(8)
-                            .background(.background, in: RoundedRectangle(cornerRadius: 12))
-                    } second: {
-                        results.padding(.top, sideBySide ? 42 : 0).padding(8)
-                            .background(.background, in: RoundedRectangle(cornerRadius: 12))
-                    }
-                }
-            }
+        VStack(spacing: 8) {
             GlassEffectContainer(spacing: 6) {
             HStack(spacing: 8) {
                 GeometryReader { tabGeometry in
@@ -54,7 +31,7 @@ struct QueryEditorView: View {
                     }
                 }
                 }.frame(height: 44)
-                Button { store.nameScript() } label: { Image(systemName: "plus").frame(width: 32, height: 32).glassEffect(.regular, in: Circle()) }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
+                Button { store.nameScript() } label: { QueryGlassControlLabel(symbol: "plus") }.help("新建命名脚本").accessibilityLabel("新建命名脚本")
                 Menu {
                     Section("最近 10 个脚本") {
                         let recent = Array(store.scripts.scripts.filter { $0.connectionID == store.active?.id }.sorted { $0.lastUsed > $1.lastUsed }.prefix(10))
@@ -65,21 +42,46 @@ struct QueryEditorView: View {
                     }
                     Divider()
                     Button("更多历史…") { openWindow(id: "script-history") }
-                } label: { Image(systemName: "clock.arrow.circlepath").frame(width: 18, height: 16) }
-                .menuStyle(.borderlessButton)
+                } label: { Image(systemName: "clock.arrow.circlepath").font(.system(size: 14, weight: .medium)) }
+                .menuStyle(.borderlessButton).menuIndicator(.visible)
+                .frame(width: 44, height: 32)
+                .glassEffect(.regular.interactive(), in: Capsule())
                 .help("脚本历史").accessibilityLabel("脚本历史")
-                Button { horizontal.toggle() } label: { Image(systemName: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1").frame(width: 18, height: 16) }.help("切换上下或左右分栏")
+                Button { horizontal.toggle() } label: { QueryGlassControlLabel(symbol: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1") }.help("切换上下或左右分栏")
             }.buttonStyle(.plain).tint(.primary).controlSize(.regular)
                 .font(.system(size: 12, weight: .medium))
                 .padding(.horizontal, 4)
             }
             .frame(height: 50)
-            .background(.bar)
+            .background(.bar, in: RoundedRectangle(cornerRadius: 26))
+            Group {
+            if store.selectedScriptID == nil {
+                ContentUnavailableView {
+                    Label("新建命名脚本", systemImage: "doc.badge.plus")
+                } description: {
+                    Text("为脚本命名后开始编辑，输入内容会自动保存到本地 .sql 文件。")
+                } actions: {
+                    Button("新建脚本") { store.nameScript() }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                GeometryReader { geometry in
+                    let sideBySide = horizontal && geometry.size.width >= 529
+                    QueryPaneSplit(vertical: sideBySide) {
+                        editor.padding(8)
+                            .background(.background, in: RoundedRectangle(cornerRadius: 12))
+                    } second: {
+                        results.padding(8)
+                            .background(.background, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(8)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(12)
         .onAppear { if store.selectedScriptID == nil { store.nameScript() } }
         .alert(store.renamingScriptID == nil ? String(localized: "新建脚本") : String(localized: "重命名脚本"), isPresented: $store.showScriptName) {
@@ -127,8 +129,8 @@ struct QueryEditorView: View {
                            let plain = $0.name.range(of: "^[a-z_][a-z0-9_]*$", options: .regularExpression) != nil
                            return [plain ? $0.name : quoteIdentifier($0.name), $0.qualifiedName]
                        },
-                       // 50 pt tabs - 8 pt pane inset + 40 pt editor toolbar.
-                       topContentInset: store.showSlowQuerySuggestion ? 118 : 82,
+                       // The separate tab block no longer occupies the editor viewport.
+                       topContentInset: store.showSlowQuerySuggestion ? 76 : 40,
                        selectionChanged: { [weak store] range in
                            guard let store, store.selectedScriptID == scriptID else { return }
                            store.querySelection = range
@@ -168,7 +170,6 @@ struct QueryEditorView: View {
             }
             }
             .background(.bar)
-            .padding(.top, 42)
 
         }
     }
@@ -218,42 +219,68 @@ private struct ScriptTabItem: View {
     let close: () -> Void
     let rename: () -> Void
     @State private var hovering = false
+    @State private var closeHovering = false
     @FocusState private var focus: Control?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private enum Control: Hashable { case title, close }
     private var showsClose: Bool { hovering || focus != nil }
 
     var body: some View {
-        Button(action: select) {
-            Text(title).lineLimit(1).truncationMode(.tail)
-                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .padding(.horizontal, 14).frame(width: width, height: 38)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).focused($focus, equals: .title).help(title)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityAction(named: Text("关闭脚本")) { if canClose { close() } }
-        .glassEffect(isSelected ? .regular : .identity, in: Capsule())
-        .overlay(alignment: .leading) {
+        ZStack(alignment: .leading) {
+            Button(action: select) {
+                Text(title).lineLimit(1).truncationMode(.tail)
+                    .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    // Reserve both sides permanently: the close glyph never
+                    // overlaps a long title, and hover cannot move the title.
+                    .padding(.horizontal, 38).frame(width: width, height: 38)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain).focused($focus, equals: .title).help(title)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .accessibilityAction(named: Text("关闭脚本")) { if canClose { close() } }
+
             if showsClose {
                 Button(action: close) {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .medium))
+                        .symbolRenderingMode(.monochrome).foregroundStyle(.primary)
                         .frame(width: 28, height: 28)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
+                        .background {
+                            if closeHovering { Circle().fill(.quaternary) }
+                        }
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain).focused($focus, equals: .close)
+                .onHover { closeHovering = $0 }
+                .onDisappear { closeHovering = false }
                 .help("关闭脚本").accessibilityLabel("关闭脚本").disabled(!canClose)
                 .padding(.leading, 5).transition(.opacity)
             }
         }
+        .background {
+            if !isSelected && (hovering || focus == .title) {
+                Capsule().fill(.quaternary)
+            }
+        }
+        // Compose all foreground content before the tab's glass surface, so
+        // neither label nor x is sampled as material behind another layer.
+        .glassEffect(isSelected ? .regular : .identity, in: Capsule())
         .onHover { hovering = $0 }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: showsClose)
         .contextMenu {
             Button("重命名…", action: rename)
             Button("关闭脚本", action: close).disabled(!canClose)
         }
+    }
+}
+
+private struct QueryGlassControlLabel: View {
+    let symbol: String
+    var body: some View {
+        Image(systemName: symbol).font(.system(size: 14, weight: .medium))
+        .frame(width: 32, height: 32)
+        .contentShape(Capsule())
+        .glassEffect(.regular.interactive(), in: Capsule())
     }
 }
 
@@ -278,6 +305,13 @@ private struct QueryPaneSplit<First: View, Second: View>: NSViewRepresentable {
             super.init()
             self.first.safeAreaRegions = []; self.second.safeAreaRegions = []
             self.first.sizingOptions = []; self.second.sizingOptions = []
+            // Clip the actual native backing layers, including scroll views and
+            // rulers. Eight points of pane padding keep content clear of corners.
+            for host in [self.first as NSView, self.second as NSView] {
+                host.wantsLayer = true
+                host.layer?.cornerRadius = 12
+                host.layer?.masksToBounds = true
+            }
         }
         func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
             min(splitView.isVertical ? 260 : 150, (splitView.isVertical ? splitView.bounds.width : splitView.bounds.height) / 2)
